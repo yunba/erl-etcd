@@ -1,0 +1,5 @@
+deps/
+rel/etcd/
+.rebar/
+ebin/
+test/logs/

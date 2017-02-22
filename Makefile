@@ -1,4 +1,4 @@
-.PHONY: all deps clean release
+.PHONY: all deps clean release test
 
 all: compile
 
@@ -28,3 +28,7 @@ foreground: generate
 
 erl: compile
 	erl -pa ebin/ -pa deps/*/ebin/ -s etcd
+
+test:
+	./rebar compile ct suite=etcd skip_deps=true
+

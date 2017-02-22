@@ -9,7 +9,7 @@
 -export([init/1]).
 
 %% Helper macro for declaring children of supervisor
--define(CHILD(I, Type), {I, {I, start_link, []}, permanent, 5000, Type, [I]}).
+-define(CHILD(I, Type, Args), {I, {I, start_link, Args}, permanent, 5000, Type, [I]}).
 
 %% ===================================================================
 %% API functions
@@ -23,5 +23,8 @@ start_link() ->
 %% ===================================================================
 
 init([]) ->
-    {ok, { {one_for_one, 5, 10}, []} }.
+    EtcdPeers = application:get_env(etcd, addr, ["http://localhost:2379"]), 
+    {ok, { {one_for_one, 5, 10}, [
+        ?CHILD(etcd_worker, worker, [EtcdPeers])
+    ]} }.
 
