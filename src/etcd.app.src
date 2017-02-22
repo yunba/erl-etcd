@@ -1,0 +1,12 @@
+{application, etcd,
+ [
+  {description, ""},
+  {vsn, "1"},
+  {registered, []},
+  {applications, [
+                  kernel,
+                  stdlib
+                 ]},
+  {mod, { etcd_app, []}},
+  {env, []}
+ ]}.
