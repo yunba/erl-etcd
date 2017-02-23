@@ -11,6 +11,7 @@
          code_change/3]).
 
 -define(SERVER, ?MODULE).
+-include("etcd.hrl").
 
 %%%===================================================================
 %%% API
@@ -18,7 +19,7 @@
 -export([start_link/1]).
 
 %% export for spawn
--export([etcd_action/5]).
+-export([etcd_action/6]).
 
 start_link(Args) ->
     gen_server:start_link({local, ?SERVER}, ?MODULE, [Args], []).
@@ -58,8 +59,9 @@ handle_cast(Msg, State) ->
     case Msg of
         {watch, Key, ModifiedIndex, Callback} ->
             %% TODO: upgrade to gen_fsm and mount it on a supervisor
-            spawn(?MODULE, etcd_action, [watch, UrlForV2, Key, ModifiedIndex, Callback]),
-            ok;
+            spawn(?MODULE, etcd_action, [watch, UrlForV2, Key, ModifiedIndex, Callback, undefined]);
+        {watch_dir, Key, ModifiedIndex, Callback} ->
+            spawn(?MODULE, etcd_action, [watch, UrlForV2, Key, ModifiedIndex, Callback, #etcd_read_opts{recursive = true}]);
         _ ->
             ok
     end,
@@ -126,24 +128,41 @@ etcd_action(set, Url, Key, Value, TTL) ->
             end;
         _Error ->
             {fail, no_response}
-    end;
-etcd_action(watch, Url, Key, ModifiedIndex, Callback) ->
+    end.
+etcd_action(watch, Url, Key, ModifiedIndex, Callback, Opts) ->
+    OptStr = case Opts of
+        undefined -> "";
+        #etcd_read_opts{recursive = Recursive, sorted = Sorted} ->
+            RecursiveStr = case Recursive of
+                true -> "&recursive=true";
+                _ -> ""
+            end,
+            SortedStr = case Sorted of
+                true -> "&sorted=true";
+                _ -> ""
+            end,
+            RecursiveStr ++ SortedStr
+    end,
     WaitIndexStr = case ModifiedIndex of
-         undefined ->
-             "";
-         _ ->
-             "&waitIndex=" ++ integer_to_list(ModifiedIndex)
-                   end,
-    case ibrowse:send_req(Url ++ "/keys" ++ Key ++ "?wait=true" ++ WaitIndexStr, [], get, [], [], 5000) of
+        undefined ->
+            "";
+        _ ->
+            "&waitIndex=" ++ integer_to_list(ModifiedIndex)
+    end,
+    case ibrowse:send_req(Url ++ "/keys" ++ Key ++ "?wait=true" ++ WaitIndexStr ++ OptStr, [], get, [], [], 5000) of
         {ok, ReturnCode, _Headers, Body} when ReturnCode == "200"->
-            Callback(Body),
             NewIndex = case get_modified_index_from_response_body(Body) of
                 {ok, NewModifiedIndex} -> NewModifiedIndex + 1;
                 _ -> ModifiedIndex
             end,
-            etcd_action(watch, Url, Key, NewIndex, Callback);
+            CallbackRet = Callback(Body),
+            case CallbackRet of
+                ok -> etcd_action(watch, Url, Key, NewIndex, Callback, Opts);
+                stop -> ok;
+                _ -> error
+            end;
         _ ->
-            etcd_action(watch, Url, Key, ModifiedIndex, Callback)
+            etcd_action(watch, Url, Key, ModifiedIndex, Callback, Opts)
     end.
 
 etcd_action(get, Url, Key) ->
@@ -161,7 +180,7 @@ etcd_action(get, Url, Key) ->
             {fail, no_response}
     end;
 etcd_action(delete,Url, Key) ->
-    case ibrowse:send_req(Url ++ "/keys" ++ Key, [], delete, [], [], 5000) of
+    case ibrowse:send_req(Url ++ "/keys" ++ Key ++ "?recursive=true", [], delete, [], [], 5000) of
         {ok, ReturnCode, _Headers, Body} ->
             case ReturnCode of
                 "200" -> 
