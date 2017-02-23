@@ -41,7 +41,7 @@ handle_call(Request, _From, State) ->
     UrlForV2 = proplists:get_value(peer,State) ++ "/v2", 
     Reply = case Request of
         {set, Key, Value, TTL} ->
-            etcd_action(set, UrlForV2, Key, Value, integer_to_list(TTL));
+            etcd_action(set, UrlForV2, Key, Value, TTL);
         {set, Key, Value} ->
             etcd_action(set, UrlForV2, Key, Value, "");
         {get, Key} ->
@@ -107,12 +107,11 @@ check_peer_alive(Url) ->
             false
     end.
 
-
 etcd_action(set, Url, Key, Value, TTL) ->
     Header = [{"Content-Type", "application/x-www-form-urlencoded"}],
     TTLStr = case TTL of
-        "" -> "";
-       _ -> "&ttl=" ++ TTL
+        "" -> "&ttl=";
+       _ -> "&ttl=" ++ integer_to_list(TTL)
     end,
     Body = "value=" ++ Value ++ TTLStr, 
     case ibrowse:send_req(Url ++ "/keys" ++ Key, Header, put, Body, [], 5000) of
