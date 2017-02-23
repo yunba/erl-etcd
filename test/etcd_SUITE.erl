@@ -24,7 +24,8 @@ get_value(_) ->
 watch_value(_) ->
     CallBack = fun(V) ->
         {ok, _ } = etcd:set("/test", "1"),
-        ct:log("the output is :~p", V)
+        ct:log("the output is :~p", V),
+        ok
     end,
     ok = etcd:watch("/message", CallBack),
 

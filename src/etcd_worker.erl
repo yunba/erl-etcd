@@ -18,7 +18,7 @@
 -export([start_link/1]).
 
 %% export for spawn
--export([etcd_action/4]).
+-export([etcd_action/5]).
 
 start_link(Args) ->
     gen_server:start_link({local, ?SERVER}, ?MODULE, [Args], []).
@@ -56,9 +56,9 @@ handle_call(Request, _From, State) ->
 handle_cast(Msg, State) ->
     UrlForV2 = proplists:get_value(peer,State) ++ "/v2", 
     case Msg of
-        {watch, Key, Callback} ->
+        {watch, Key, ModifiedIndex, Callback} ->
             %% TODO: upgrade to gen_fsm and mount it on a supervisor
-            spawn(?MODULE, etcd_action, [watch, UrlForV2, Key, Callback]),
+            spawn(?MODULE, etcd_action, [watch, UrlForV2, Key, ModifiedIndex, Callback]),
             ok;
         _ ->
             ok
@@ -127,20 +127,24 @@ etcd_action(set, Url, Key, Value, TTL) ->
             end;
         _Error ->
             {fail, no_response}
-    end.
-
-etcd_action(watch, Url, Key, Callback) ->
-    case ibrowse:send_req(Url ++ "/keys" ++ Key ++ "?wait=true", [], get, [], [], 5000) of
+    end;
+etcd_action(watch, Url, Key, ModifiedIndex, Callback) ->
+    WaitIndexStr = case ModifiedIndex of
+         undefined ->
+             "";
+         _ ->
+             "&waitIndex=" ++ integer_to_list(ModifiedIndex)
+                   end,
+    case ibrowse:send_req(Url ++ "/keys" ++ Key ++ "?wait=true" ++ WaitIndexStr, [], get, [], [], 5000) of
         {ok, ReturnCode, _Headers, Body} when ReturnCode == "200"->
-            BinBody = list_to_binary(Body),
-            case jiffy:decode(BinBody) of
-                {Props} ->
-                    {ok, Callback(Props)};
-                _ ->
-                    etcd_action(watch, Url, Key, Callback)
-            end;
+            Callback(Body),
+            NewIndex = case get_modified_index_from_response_body(Body) of
+                {ok, NewModifiedIndex} -> NewModifiedIndex + 1;
+                _ -> ModifiedIndex
+            end,
+            etcd_action(watch, Url, Key, NewIndex, Callback);
         _ ->
-            etcd_action(watch, Url, Key, Callback)
+            etcd_action(watch, Url, Key, ModifiedIndex, Callback)
     end.
 
 etcd_action(get, Url, Key) ->
@@ -148,15 +152,7 @@ etcd_action(get, Url, Key) ->
         {ok, ReturnCode, _Headers, Body} ->
             case ReturnCode of
                 "200" -> 
-                    case jiffy:decode(Body) of
-                        {Props} ->
-                            %% no error, return value
-                            {NodeValue} = proplists:get_value(<<"node">>, Props),
-                            Value = proplists:get_value(<<"value">>, NodeValue),
-                            {ok, Value};
-                        _ ->
-                            {fail, wrong_json_body}
-                    end;
+                    get_value_from_response_body(Body);
                 "404" ->
                     {fail, not_found};
                 _ -> 
@@ -178,4 +174,26 @@ etcd_action(delete,Url, Key) ->
             end;
         _ ->
             {fail, no_response}
+    end.
+
+
+get_value_from_response_body(Body) ->
+    case jiffy:decode(Body) of
+        {Props} ->
+            %% no error, return value
+            {NodeValue} = proplists:get_value(<<"node">>, Props),
+            Value = proplists:get_value(<<"value">>, NodeValue),
+            {ok, Value};
+        _ ->
+            {fail, wrong_json_body}
+    end.
+get_modified_index_from_response_body(Body) ->
+    case jiffy:decode(Body) of
+        {Props} ->
+            %% no error, return value
+            {NodeValue} = proplists:get_value(<<"node">>, Props),
+            Value = proplists:get_value(<<"modifiedIndex">>, NodeValue),
+            {ok, Value};
+        _ ->
+            {fail, wrong_json_body}
     end.
