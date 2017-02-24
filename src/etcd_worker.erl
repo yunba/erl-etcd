@@ -68,11 +68,23 @@ handle_cast(Msg, State) ->
     {noreply, State}.
 
 handle_info(Info, State) ->
-    case Info of
-        peer_down ->
-            body
+    NextState = case Info of
+        peer_down->
+            EtcdPeers = proplists:get_value(etcds,State), 
+            NewPeer = get_health_peer(EtcdPeers),
+            case NewPeer of
+                undefined -> 
+                    timer:send_after(5000, self(), peer_down),
+                    State;
+                _ -> 
+                    %% update old peer to new peer
+                    CleanState = proplists:delete(peer, State),
+                    CleanState ++ [{peer, NewPeer}]
+            end;
+        _ ->
+            State
     end,
-    {noreply, State}.
+    {noreply, NextState}.
 
 terminate(_Reason, _State) ->
     ok.
@@ -124,11 +136,15 @@ etcd_action(set, Url, Key, Value, TTL) ->
                 "201" -> 
                     {ok, RetBody};
                 _ -> 
-                    {fail, wrong_response_code}
+                    {fail, {wrong_response_code, Body}}
             end;
-        _Error ->
-            {fail, no_response}
+        {error,{conn_failed,{error,econnrefused}}} ->
+            self() ! peer_down,
+            {fail, peer_down};
+        Reason ->
+            {fail, Reason}
     end.
+
 etcd_action(watch, Url, Key, ModifiedIndex, Callback, Opts) ->
     OptStr = case Opts of
         undefined -> "";
@@ -162,6 +178,9 @@ etcd_action(watch, Url, Key, ModifiedIndex, Callback, Opts) ->
                 stop -> ok;
                 _ -> error
             end;
+        {error,{conn_failed,{error,econnrefused}}} ->
+            self() ! peer_down,
+            etcd_action(watch, Url, Key, ModifiedIndex, Callback, Opts);
         _ ->
             etcd_action(watch, Url, Key, ModifiedIndex, Callback, Opts)
     end.
@@ -175,10 +194,13 @@ etcd_action(get, Url, Key) ->
                 "404" ->
                     {fail, not_found};
                 _ -> 
-                    {fail, wrong_response_code}
+                    {fail, {wrong_response_code, Body}}
             end;
-        _ ->
-            {fail, no_response}
+        {error,{conn_failed,{error,econnrefused}}} ->
+            self() ! peer_down,
+            {fail, peer_down};
+        Reason ->
+            {fail, Reason}
     end;
 etcd_action(delete,Url, Key) ->
     case ibrowse:send_req(Url ++ "/keys" ++ Key ++ "?recursive=true", [], delete, [], [], 5000) of
@@ -189,10 +211,13 @@ etcd_action(delete,Url, Key) ->
                 "404" -> 
                     {ok, Body};
                 _ -> 
-                    {fail, wrong_response_code}
+                    {fail, {wrong_response_code, Body}}
             end;
-        _ ->
-            {fail, no_response}
+        {error,{conn_failed,{error,econnrefused}}} ->
+            self() ! peer_down,
+            {fail, peer_down};
+        Reason ->
+            {fail, Reason}
     end.
 
 
