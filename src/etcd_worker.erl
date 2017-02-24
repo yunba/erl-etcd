@@ -149,7 +149,8 @@ etcd_action(watch, Url, Key, ModifiedIndex, Callback, Opts) ->
         _ ->
             "&waitIndex=" ++ integer_to_list(ModifiedIndex)
     end,
-    case ibrowse:send_req(Url ++ "/keys" ++ Key ++ "?wait=true" ++ WaitIndexStr ++ OptStr, [], get, [], [], 5000) of
+    %% hung up this request, just wait until something is changed
+    case ibrowse:send_req(Url ++ "/keys" ++ Key ++ "?wait=true" ++ WaitIndexStr ++ OptStr, [], get, [], [], 60000) of
         {ok, ReturnCode, _Headers, Body} when ReturnCode == "200"->
             NewIndex = case get_modified_index_from_response_body(Body) of
                 {ok, NewModifiedIndex} -> NewModifiedIndex + 1;
@@ -170,7 +171,7 @@ etcd_action(get, Url, Key) ->
         {ok, ReturnCode, _Headers, Body} ->
             case ReturnCode of
                 "200" -> 
-                    get_value_from_response_body(Body);
+                    {ok, Body};
                 "404" ->
                     {fail, not_found};
                 _ -> 
@@ -195,16 +196,6 @@ etcd_action(delete,Url, Key) ->
     end.
 
 
-get_value_from_response_body(Body) ->
-    case jiffy:decode(Body) of
-        {Props} ->
-            %% no error, return value
-            {NodeValue} = proplists:get_value(<<"node">>, Props),
-            Value = proplists:get_value(<<"value">>, NodeValue),
-            {ok, Value};
-        _ ->
-            {fail, wrong_json_body}
-    end.
 get_modified_index_from_response_body(Body) ->
     case jiffy:decode(Body) of
         {Props} ->

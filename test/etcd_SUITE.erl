@@ -10,6 +10,7 @@ all() ->
         get_value,
         watch_value,
         watch_dir,
+        get_dir,
         delete_value
     ].
 
@@ -37,10 +38,10 @@ refresh_value_with_ttl(_) ->
     timer:sleep(500),
     {ok,_ } = etcd:set("/ttlmsg", "", 2),
     timer:sleep(500),
-    {ok, _} = etcd:get("/ttlmsg").
+    {ok, _} = get_one_node_value("/ttlmsg").
 
 get_value(_) ->
-    {ok, <<"1">>} = etcd:get("/message").
+    {ok, <<"1">>} = get_one_node_value("/message").
 
 watch_value(_) ->
     %% this test is a little care about timing...
@@ -56,7 +57,7 @@ watch_value(_) ->
     timer:sleep(1000),
 
     %% stop after it's triggered
-    {ok, <<"1">>} = etcd:get("/test1"),
+    {ok, <<"1">>} = get_one_node_value("/test1"),
 
     SecondCallback = fun(_V) ->
         {ok, _} = etcd:set("/test2", "1"),
@@ -70,7 +71,7 @@ watch_value(_) ->
 
     timer:sleep(1000),
     %% /message changed -> trigger /test chagning -> trigger /test2 changing
-    {ok, <<"1">>} = etcd:get("/test2"),
+    {ok, <<"1">>} = get_one_node_value("/test2"),
     {ok, _} = etcd:delete("/test1"),
     {ok, _} = etcd:delete("/test2").
 
@@ -87,8 +88,27 @@ watch_dir(_) ->
     timer:sleep(2000),
 
     %% stop after it's triggered
-    {ok, <<"1">>} = etcd:get("/dir_test").
+    {ok, <<"1">>} = get_one_node_value("/dir_test").
 
+get_dir(_) ->
+    {ok, Body} = etcd:get("/test_dir"),
+    ct:log(Body),
+    ok.
 
 delete_value(_) ->
     {ok, _} = etcd:delete("/message").
+
+get_one_node_value(Key) ->
+    {ok, Body} = etcd:get(Key),
+    get_value_from_response_body(Body).
+    
+get_value_from_response_body(Body) ->
+    case jiffy:decode(Body) of
+        {Props} ->
+            %% no error, return value
+            {NodeValue} = proplists:get_value(<<"node">>, Props),
+            Value = proplists:get_value(<<"value">>, NodeValue),
+            {ok, Value};
+        _ ->
+            {fail, wrong_json_body}
+    end.
