@@ -4,6 +4,14 @@ Erlang driver for etcd. Requried R16 or higher
 
 ## Quick start
 
+Config etcd address:
+
+```erlang
+{etcd, [{addr, ["http://address1:port1", "http://address2:port2", "http://address3:port3"]}]
+```
+
+Start the application and do some basic action:
+
 ```erlang
 %% start the application
 application:start(etcd).
@@ -34,3 +42,5 @@ Refer to `src/etcd.erl` to see more details about APIs.
 This is the first alpha version of etcd erlang client. Supporting:
 - Basic CURD
 - Basic wait operation
+
+
