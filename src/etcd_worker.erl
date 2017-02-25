@@ -11,6 +11,9 @@
          code_change/3]).
 
 -define(SERVER, ?MODULE).
+
+%% export for testing perpose
+-export([generate_modify_url_and_data_from_opts/1, generate_read_str_from_opts/1]).
 -include("etcd.hrl").
 
 %%%===================================================================
@@ -272,7 +275,7 @@ generate_modify_url_and_data_from_opts(Opts) ->
                 false -> QueryList0
             end,
             QueryList2 = case is_boolean(PrevExist) of
-                true -> QueryList1 ++ ["prev_exist=" ++ atom_to_list(PrevExist)];
+                true -> QueryList1 ++ ["prevExist=" ++ atom_to_list(PrevExist)];
                 false -> QueryList1
             end,
             QueryList3 = case is_boolean(Dir) of
@@ -280,11 +283,11 @@ generate_modify_url_and_data_from_opts(Opts) ->
                 false -> QueryList2
             end,
             QueryList4 = case is_list(PrevValue) of
-                true -> QueryList3 ++ ["prev_value=" ++ PrevValue];
+                true -> QueryList3 ++ ["prevValue=" ++ PrevValue];
                 false -> QueryList3
             end,
             QueryList5 = case is_integer(PrevIndex) of
-                true -> QueryList4 ++ ["prev_index=" ++ integer_to_list(PrevIndex)];
+                true -> QueryList4 ++ ["prevIndex=" ++ integer_to_list(PrevIndex)];
                 false -> QueryList4
             end,
             QueryStr = lists:foldl(fun gen_query_str/2, "", QueryList5),

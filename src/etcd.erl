@@ -1,6 +1,6 @@
 -module(etcd).
 
--export([set/3, set/2, get/1, delete/1, watch/2, watch_dir/2]).
+-export([set/3, set/2, set/1, get/1, delete/1, watch/2, watch_dir/2]).
 -include("etcd.hrl").
 
 %%%% set up a key with value with a TTL value(in seconds).

@@ -4,7 +4,7 @@
     recursive = false,
     sorted = false,
     modified_index = undefined,
-    quorum = undefined
+    quorum = undefined %% not sure about how to use it yet
     }).
 -record(etcd_modify_opts, {
     key = "" :: list(),
