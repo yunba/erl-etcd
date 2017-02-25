@@ -118,17 +118,10 @@ check_peer_alive(Url) ->
     end.
 
 %% handle all opts
-etcd_action(set, Url, Opts) ->
+etcd_action(set, V2Url, Opts) ->
     Header = [{"Content-Type", "application/x-www-form-urlencoded"}],
-    TTLStr = case Opts#etcd_modify_opts.ttl of
-        undefined -> "";
-        "" -> "&ttl=";
-        TTL -> "&ttl=" ++ integer_to_list(TTL)
-    end,
-    Key = Opts#etcd_modify_opts.key,
-    Value = Opts#etcd_modify_opts.value,
-    Body = "value=" ++ Value ++ TTLStr, 
-    case ibrowse:send_req(Url ++ "/keys" ++ Key, Header, put, Body, [], 5000) of
+    {Body, QueryStr}= generate_modify_url_and_data_from_opts(Opts), 
+    case ibrowse:send_req(V2Url ++ "/keys" ++ QueryStr, Header, put, Body, [], 5000) of
         {ok, ReturnCode, _Headers, RetBody} ->
             case ReturnCode of
                 "200" -> 
@@ -144,9 +137,9 @@ etcd_action(set, Url, Opts) ->
         Reason ->
             {fail, Reason}
     end;
-etcd_action(get, Url, Opts) ->
-    Key = Opts#etcd_read_opts.key,
-    case ibrowse:send_req(Url ++ "/keys" ++ Key, [], get, [], [], 5000) of
+etcd_action(get, V2Url, Opts) ->
+    OptStr = generate_read_str_from_opts(Opts),
+    case ibrowse:send_req(V2Url ++ "/keys" ++ OptStr, [], get, [], [], 5000) of
         {ok, ReturnCode, _Headers, Body} ->
             case ReturnCode of
                 "200" -> 
@@ -162,9 +155,10 @@ etcd_action(get, Url, Opts) ->
         Reason ->
             {fail, Reason}
     end;
-etcd_action(delete,Url, Opts) ->
-    Key = Opts#etcd_modify_opts.key,
-    case ibrowse:send_req(Url ++ "/keys" ++ Key ++ "?recursive=true", [], delete, [], [], 5000) of
+etcd_action(delete, V2Url, Opts) ->
+    {_, OptStr} = generate_modify_url_and_data_from_opts(
+        Opts#etcd_modify_opts{recursive = true, refresh = undefined}) ,
+    case ibrowse:send_req(V2Url ++ "/keys" ++ OptStr, [], delete, [], [], 5000) of
         {ok, ReturnCode, _Headers, Body} ->
             case ReturnCode of
                 "200" -> 
@@ -181,53 +175,122 @@ etcd_action(delete,Url, Opts) ->
             {fail, Reason}
     end.
 %% handle all opts
-etcd_action(watch, Url, Opts, Callback) ->
-    OptStr = case Opts of
-        undefined -> 
-            ModifiedIndex = undefined,
-            "";
-        #etcd_read_opts{
-            recursive = Recursive,
-            sorted = Sorted,
-            modified_index = ModifiedIndex} ->
+etcd_action(watch, V2Url, Opts, Callback) ->
+    OptStr = generate_read_str_from_opts(Opts#etcd_read_opts{wait = true}),
 
-            RecursiveStr = case Recursive of
-                true -> "&recursive=true";
-                _ -> ""
-            end,
-            SortedStr = case Sorted of
-                true -> "&sorted=true";
-                _ -> ""
-            end,
-            ModifiedIndexStr = case ModifiedIndex of
-                undefined ->
-                    "";
-                _ ->
-                    "&waitIndex=" ++ integer_to_list(ModifiedIndex)
-            end,
-            RecursiveStr ++ SortedStr ++ ModifiedIndexStr
-    end,
-
-    Key = Opts#etcd_read_opts.key,
-
-    case ibrowse:send_req(Url ++ "/keys" ++ Key ++ "?wait=true" ++ OptStr, [], get, [], [], 60000) of
+    case ibrowse:send_req(V2Url ++ "/keys" ++ OptStr, [], get, [], [], 60000) of
         {ok, ReturnCode, _Headers, Body} when ReturnCode == "200"->
-            NewIndex = case get_modified_index_from_response_body(Body) of
-                {ok, NewModifiedIndex} -> NewModifiedIndex + 1;
-                _ -> ModifiedIndex
+            NewOpts = case get_modified_index_from_response_body(Body) of
+                {ok, NewModifiedIndex} -> 
+                    NewIndex = NewModifiedIndex + 1,
+                    Opts#etcd_read_opts{modified_index = NewIndex};
+                _ -> Opts
             end,
             CallbackRet = Callback(Body),
-            NewOpts = Opts#etcd_read_opts{modified_index = NewIndex},
             case CallbackRet of
-                ok -> etcd_action(watch, Url, NewOpts, Callback);
+                ok -> etcd_action(watch, V2Url, NewOpts, Callback);
                 stop -> ok;
                 _ -> error
             end;
         {error,{conn_failed,{error,econnrefused}}} ->
             self() ! peer_down,
-            etcd_action(watch, Url, Opts, Callback);
+            etcd_action(watch, V2Url, Opts, Callback);
         _ ->
-            etcd_action(watch, Url, Opts, Callback)
+            etcd_action(watch, V2Url, Opts, Callback)
+    end.
+
+%% need to be tested
+generate_read_str_from_opts(Opts) ->
+    case Opts of
+        #etcd_read_opts{
+            key = Key,
+            wait = Wait,
+            recursive = Recursive,
+            sorted = Sorted,
+            modified_index = ModifiedIndex} ->
+
+            OptList0 = case is_boolean(Wait) of
+                true -> ["wait=" ++ atom_to_list(Wait)];
+                _ -> []
+            end,
+            OptList1 = case is_boolean(Recursive) of
+                true -> OptList0 ++ ["recursive=" ++ atom_to_list(Recursive)];
+                _ -> OptList0
+            end,
+            OptList2 = case is_boolean(Sorted) of
+                true -> OptList1 ++ ["sorted=" ++ atom_to_list(Sorted)];
+                _ -> OptList1
+            end,
+            OptList3 = case is_integer(ModifiedIndex) of
+                true ->
+                    OptList2 ++ ["waitIndex=" ++ integer_to_list(ModifiedIndex)];
+                false ->
+                    OptList2
+            end,
+            OptsStr = lists:foldl(fun gen_query_str/2, "", OptList3),
+
+            Key ++ OptsStr;
+        _ ->
+            %% Actually , you should raise an exception here,
+            %% but let's just ignore it so the gen server can just return a 404
+            ""
+    end.
+
+gen_query_str(OptStr, CurStr) ->
+    case {OptStr, CurStr} of
+        {"", _} -> CurStr;
+        {_, ""} -> "?" ++ OptStr;
+        {_,_} -> CurStr ++ "&" ++ OptStr
+    end.
+
+generate_modify_url_and_data_from_opts(Opts) ->
+    case Opts of
+        #etcd_modify_opts{
+            ttl = TTL,        
+            key = Key,
+            value = Value,      
+            recursive = Recursive,      
+            refresh = Refresh,
+            prev_value = PrevValue,
+            prev_index = PrevIndex,
+            prev_exist = PrevExist,
+            dir = Dir
+            } ->
+            DataStr = case {Value, TTL }of
+                {undefined, undefined} -> "";
+                {_, undefined} -> "value=" ++ Value;
+                {undefined, _} -> "ttl=" ++ integer_to_list(TTL);
+                {_, _} -> "value=" ++ Value ++ "&ttl=" ++ integer_to_list(TTL)
+            end,
+
+            QueryList0 = case is_boolean(Recursive) of
+                true -> ["recursive=" ++ atom_to_list(Recursive)];
+                false -> []
+            end,
+            QueryList1 = case is_boolean(Refresh) of
+                true -> QueryList0 ++ ["refresh=" ++ atom_to_list(Refresh)];
+                false -> QueryList0
+            end,
+            QueryList2 = case is_boolean(PrevExist) of
+                true -> QueryList1 ++ ["prev_exist=" ++ atom_to_list(PrevExist)];
+                false -> QueryList1
+            end,
+            QueryList3 = case is_boolean(Dir) of
+                true -> QueryList2 ++ ["dir=" ++ atom_to_list(Dir)];
+                false -> QueryList2
+            end,
+            QueryList4 = case is_list(PrevValue) of
+                true -> QueryList3 ++ ["prev_value=" ++ PrevValue];
+                false -> QueryList3
+            end,
+            QueryList5 = case is_integer(PrevIndex) of
+                true -> QueryList4 ++ ["prev_index=" ++ integer_to_list(PrevIndex)];
+                false -> QueryList4
+            end,
+            QueryStr = lists:foldl(fun gen_query_str/2, "", QueryList5),
+
+            {DataStr, Key ++ QueryStr};
+        _ -> ""
     end.
 
 %% FIXME: what if the body returns a list

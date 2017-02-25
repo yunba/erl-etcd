@@ -3,16 +3,17 @@
     wait = false,
     recursive = false,
     sorted = false,
-    modified_index = undefined
+    modified_index = undefined,
+    quorum = undefined
     }).
 -record(etcd_modify_opts, {
-    ttl = undefined,        %% for udpate only
-    key = undefined,
-    value = undefined,      %% for update only
-    recursive = false,      %% for delete only
-    refresh = undefined,
-    prev_value = undefined,
-    prev_index = undefined,
-    prev_exist = undefined,
-    dir = undefined
+    key = "" :: list(),
+    ttl = undefined :: integer() | undefined,            %% for udpate only
+    refresh = undefined :: boolean() | undefined,        %% for update only
+    value = undefined :: list() | undefined,             %% for update only
+    recursive = undefined :: boolean() | undefined,      %% for delete only
+    dir = undefined :: boolean() | undefined,
+    prev_exist = undefined :: boolean() | undefined,
+    prev_value = undefined :: list() | undefined,
+    prev_index = undefined :: integer() | undefined
     }).

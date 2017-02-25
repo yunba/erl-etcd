@@ -23,7 +23,7 @@ start_link() ->
 %% ===================================================================
 
 init([]) ->
-    EtcdPeers = application:get_env(etcd, addr), 
+    {ok, EtcdPeers}= application:get_env(etcd, addr), 
     {ok, { {one_for_one, 5, 10}, [
         ?CHILD(etcd_worker, worker, [EtcdPeers])
     ]} }.

@@ -4,3 +4,4 @@ rel/etcd/
 ebin/
 test/logs/
 *.beam
+*.dump
