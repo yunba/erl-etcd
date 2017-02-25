@@ -19,7 +19,7 @@
 -export([start_link/1]).
 
 %% export for spawn
--export([etcd_action/6]).
+-export([etcd_action/4]).
 
 start_link(Args) ->
     gen_server:start_link({local, ?SERVER}, ?MODULE, [Args], []).
@@ -41,14 +41,12 @@ init([EtcdPeers]) ->
 handle_call(Request, _From, State) ->
     UrlForV2 = proplists:get_value(peer,State) ++ "/v2", 
     Reply = case Request of
-        {set, Key, Value, TTL} ->
-            etcd_action(set, UrlForV2, Key, Value, TTL);
-        {set, Key, Value} ->
-            etcd_action(set, UrlForV2, Key, Value, "");
-        {get, Key} ->
-            etcd_action(get, UrlForV2, Key);
-        {delete, Key} ->
-            etcd_action(delete, UrlForV2, Key)
+        {set, Opts} ->
+            etcd_action(set, UrlForV2, Opts);
+        {get, Opts} ->
+            etcd_action(get, UrlForV2, Opts);
+        {delete, Opts} ->
+            etcd_action(delete, UrlForV2, Opts)
     end,
 
     {reply, Reply, State}.
@@ -57,11 +55,9 @@ handle_call(Request, _From, State) ->
 handle_cast(Msg, State) ->
     UrlForV2 = proplists:get_value(peer,State) ++ "/v2", 
     case Msg of
-        {watch, Key, ModifiedIndex, Callback} ->
+        {watch, Opts, Callback} ->
             %% TODO: upgrade to gen_fsm and mount it on a supervisor
-            spawn(?MODULE, etcd_action, [watch, UrlForV2, Key, ModifiedIndex, Callback, undefined]);
-        {watch_dir, Key, ModifiedIndex, Callback} ->
-            spawn(?MODULE, etcd_action, [watch, UrlForV2, Key, ModifiedIndex, Callback, #etcd_read_opts{recursive = true}]);
+            spawn(?MODULE, etcd_action, [watch, UrlForV2, Opts, Callback]);
         _ ->
             ok
     end,
@@ -121,12 +117,16 @@ check_peer_alive(Url) ->
             false
     end.
 
-etcd_action(set, Url, Key, Value, TTL) ->
+%% handle all opts
+etcd_action(set, Url, Opts) ->
     Header = [{"Content-Type", "application/x-www-form-urlencoded"}],
-    TTLStr = case TTL of
+    TTLStr = case Opts#etcd_modify_opts.ttl of
+        undefined -> "";
         "" -> "&ttl=";
-       _ -> "&ttl=" ++ integer_to_list(TTL)
+        TTL -> "&ttl=" ++ integer_to_list(TTL)
     end,
+    Key = Opts#etcd_modify_opts.key,
+    Value = Opts#etcd_modify_opts.value,
     Body = "value=" ++ Value ++ TTLStr, 
     case ibrowse:send_req(Url ++ "/keys" ++ Key, Header, put, Body, [], 5000) of
         {ok, ReturnCode, _Headers, RetBody} ->
@@ -143,49 +143,9 @@ etcd_action(set, Url, Key, Value, TTL) ->
             {fail, peer_down};
         Reason ->
             {fail, Reason}
-    end.
-
-etcd_action(watch, Url, Key, ModifiedIndex, Callback, Opts) ->
-    OptStr = case Opts of
-        undefined -> "";
-        #etcd_read_opts{recursive = Recursive, sorted = Sorted} ->
-            RecursiveStr = case Recursive of
-                true -> "&recursive=true";
-                _ -> ""
-            end,
-            SortedStr = case Sorted of
-                true -> "&sorted=true";
-                _ -> ""
-            end,
-            RecursiveStr ++ SortedStr
-    end,
-    WaitIndexStr = case ModifiedIndex of
-        undefined ->
-            "";
-        _ ->
-            "&waitIndex=" ++ integer_to_list(ModifiedIndex)
-    end,
-    %% hung up this request, just wait until something is changed
-    case ibrowse:send_req(Url ++ "/keys" ++ Key ++ "?wait=true" ++ WaitIndexStr ++ OptStr, [], get, [], [], 60000) of
-        {ok, ReturnCode, _Headers, Body} when ReturnCode == "200"->
-            NewIndex = case get_modified_index_from_response_body(Body) of
-                {ok, NewModifiedIndex} -> NewModifiedIndex + 1;
-                _ -> ModifiedIndex
-            end,
-            CallbackRet = Callback(Body),
-            case CallbackRet of
-                ok -> etcd_action(watch, Url, Key, NewIndex, Callback, Opts);
-                stop -> ok;
-                _ -> error
-            end;
-        {error,{conn_failed,{error,econnrefused}}} ->
-            self() ! peer_down,
-            etcd_action(watch, Url, Key, ModifiedIndex, Callback, Opts);
-        _ ->
-            etcd_action(watch, Url, Key, ModifiedIndex, Callback, Opts)
-    end.
-
-etcd_action(get, Url, Key) ->
+    end;
+etcd_action(get, Url, Opts) ->
+    Key = Opts#etcd_read_opts.key,
     case ibrowse:send_req(Url ++ "/keys" ++ Key, [], get, [], [], 5000) of
         {ok, ReturnCode, _Headers, Body} ->
             case ReturnCode of
@@ -202,7 +162,8 @@ etcd_action(get, Url, Key) ->
         Reason ->
             {fail, Reason}
     end;
-etcd_action(delete,Url, Key) ->
+etcd_action(delete,Url, Opts) ->
+    Key = Opts#etcd_modify_opts.key,
     case ibrowse:send_req(Url ++ "/keys" ++ Key ++ "?recursive=true", [], delete, [], [], 5000) of
         {ok, ReturnCode, _Headers, Body} ->
             case ReturnCode of
@@ -219,8 +180,57 @@ etcd_action(delete,Url, Key) ->
         Reason ->
             {fail, Reason}
     end.
+%% handle all opts
+etcd_action(watch, Url, Opts, Callback) ->
+    OptStr = case Opts of
+        undefined -> 
+            ModifiedIndex = undefined,
+            "";
+        #etcd_read_opts{
+            recursive = Recursive,
+            sorted = Sorted,
+            modified_index = ModifiedIndex} ->
 
+            RecursiveStr = case Recursive of
+                true -> "&recursive=true";
+                _ -> ""
+            end,
+            SortedStr = case Sorted of
+                true -> "&sorted=true";
+                _ -> ""
+            end,
+            ModifiedIndexStr = case ModifiedIndex of
+                undefined ->
+                    "";
+                _ ->
+                    "&waitIndex=" ++ integer_to_list(ModifiedIndex)
+            end,
+            RecursiveStr ++ SortedStr ++ ModifiedIndexStr
+    end,
 
+    Key = Opts#etcd_read_opts.key,
+
+    case ibrowse:send_req(Url ++ "/keys" ++ Key ++ "?wait=true" ++ OptStr, [], get, [], [], 60000) of
+        {ok, ReturnCode, _Headers, Body} when ReturnCode == "200"->
+            NewIndex = case get_modified_index_from_response_body(Body) of
+                {ok, NewModifiedIndex} -> NewModifiedIndex + 1;
+                _ -> ModifiedIndex
+            end,
+            CallbackRet = Callback(Body),
+            NewOpts = Opts#etcd_read_opts{modified_index = NewIndex},
+            case CallbackRet of
+                ok -> etcd_action(watch, Url, NewOpts, Callback);
+                stop -> ok;
+                _ -> error
+            end;
+        {error,{conn_failed,{error,econnrefused}}} ->
+            self() ! peer_down,
+            etcd_action(watch, Url, Opts, Callback);
+        _ ->
+            etcd_action(watch, Url, Opts, Callback)
+    end.
+
+%% FIXME: what if the body returns a list
 get_modified_index_from_response_body(Body) ->
     case jiffy:decode(Body) of
         {Props} ->
