@@ -27,7 +27,7 @@ add_child(ChildSpec) ->
 
 init([]) ->
     {ok, EtcdPeers}= application:get_env(etcd, addr), 
-    {ok, { {one_for_one, 5, 10}, [
+    {ok, { {one_for_one, 10, 10}, [
         ?CHILD(etcd_worker, worker, [EtcdPeers])
     ]} }.
 

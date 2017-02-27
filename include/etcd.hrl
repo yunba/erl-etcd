@@ -1,9 +1,9 @@
 -record(etcd_read_opts, {
-    key = undefined,
-    wait = false,
-    recursive = false,
-    sorted = false,
-    modified_index = undefined,
+    key = ""  :: list(),
+    wait = undefined :: undefined | boolean(),
+    recursive = undefined :: undefined | boolean(),
+    sorted = undefined :: undefined | boolean(),
+    modified_index = undefined :: undefined | integer(),
     quorum = undefined %% not sure about how to use it yet
     }).
 -record(etcd_modify_opts, {

@@ -1,6 +1,7 @@
 -module(etcd).
 
--export([set/3, set/2, set/1, get/1, delete/1, watch/2, watch_dir/2]).
+-export([set/3, set/2, set/1, get/1, delete/1, watch/2, watch_dir/2, get_current_peer/0]).
+-export([test/0]).
 -include("etcd.hrl").
 
 %%%% set up a key with value with a TTL value(in seconds).
@@ -75,3 +76,7 @@ watch_dir(KeyOrOpts, Callback) ->
             #etcd_read_opts{key = KeyOrOpts, modified_index = undefined, recursive = true}
            end,
     gen_server:cast(etcd_worker, {watch, Opts, Callback}).
+
+get_current_peer() ->
+    gen_server:call(etcd_worker, {peer}).
+

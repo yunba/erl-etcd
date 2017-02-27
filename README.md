@@ -1,6 +1,6 @@
 ## erl-etcd
 
-Erlang driver for etcd. Requried R16 or higher
+Erlang driver for etcd. Requried R16 or higher, basing on etcd v2 http APIs.
 
 ## Quick start
 

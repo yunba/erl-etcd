@@ -1,3 +1,6 @@
+%% all etcd keys you used here should start with /testing_entry, so you can delete it with one delete command in the init_per_suite
+
+
 - module(etcd_SUITE).
 
 - compile(export_all).
@@ -22,52 +25,48 @@ all() ->
     ].
 
 only_work_when_prev_index(_) ->
-    etcd:delete("/prev_index"),
-    {ok, Body} = etcd:set("/prev_exist", "1"),
+    etcd:delete("/testing_entry/prev_index"),
+    {ok, Body} = etcd:set("/testing_entry/prev_exist", "1"),
     %%TODO
     ok.
 
 only_work_when_prev_exist(_) ->
-    etcd:delete("/prev_exist"),
-    etcd:delete("/prev_exist2"),
-    etcd:set("/prev_exist", "1"),
+    etcd:delete("/testing_entry/prev_exist"),
+    etcd:delete("/testing_entry/prev_exist2"),
+    etcd:set("/testing_entry/prev_exist", "1"),
     Opts1 = #etcd_modify_opts{
-        key = "/prev_exist", prev_exist = true,
+        key = "/testing_entry/prev_exist", prev_exist = true,
         value = "2"},
     etcd:set(Opts1),
-    {ok, <<"2">>} = get_one_node_value("/prev_exist"),
+    {ok, <<"2">>} = get_one_node_value("/testing_entry/prev_exist"),
     Opts2 = #etcd_modify_opts{
-        key = "/prev_exist2", prev_exist = true,
+        key = "/testing_entry/prev_exist2", prev_exist = true,
         value = "2"},
     etcd:set(Opts2),
-    {fail, not_found} = etcd:get("/prev_exist2"),
-    etcd:delete("/prev_exist"),
+    {fail, not_found} = etcd:get("/testing_entry/prev_exist2"),
+    etcd:delete("/testing_entry/prev_exist"),
     ok.
 
 only_work_when_prev_value(_) ->
-    etcd:delete("/prev_value"),
-    etcd:set("/prev_value", "1"),
-    {ok, <<"1">>} = get_one_node_value("/prev_value"),
+    etcd:delete("/testing_entry/prev_value"),
+    etcd:set("/testing_entry/prev_value", "1"),
+    {ok, <<"1">>} = get_one_node_value("/testing_entry/prev_value"),
     Opts1 = #etcd_modify_opts{
-        key = "/prev_value", prev_value = "1",
+        key = "/testing_entry/prev_value", prev_value = "1",
         value = "2"},
     etcd:set(Opts1),
-    {ok, <<"2">>} = get_one_node_value("/prev_value"),
+    {ok, <<"2">>} = get_one_node_value("/testing_entry/prev_value"),
 
     Opts2 = #etcd_modify_opts{
-        key = "/prev_value", prev_value = "1",
+        key = "/testing_entry/prev_value", prev_value = "1",
         value = "3"},
     etcd:set(Opts2),
-    {ok, <<"2">>} = get_one_node_value("/prev_value"),
+    {ok, <<"2">>} = get_one_node_value("/testing_entry/prev_value"),
     ok.
 
 init_per_suite(Config) ->
     {ok, _} = application:ensure_all_started(etcd),
-    etcd:delete("/message"),
-    etcd:delete("/ttlmsg"),
-    etcd:delete("/test1"),
-    etcd:delete("/test2"),
-    etcd:delete("/test_dir"),
+    etcd:delete("/testing_entry"),
     Config.
 
 gen_read_opt_querys(_) ->
@@ -75,106 +74,107 @@ gen_read_opt_querys(_) ->
 
 gen_write_opt_data_and_querys(_) ->
     Opts0 = #etcd_modify_opts{
-        key = "/ttlmsg",
+        key = "/testing_entry/ttlmsg",
         ttl = 2,
         refresh = true
         },
-    {"ttl=2", "/ttlmsg?refresh=true"} = etcd_worker:generate_modify_url_and_data_from_opts(Opts0),
+    {"ttl=2", "/testing_entry/ttlmsg?refresh=true"} = etcd_worker:generate_modify_url_and_data_from_opts(Opts0),
     Opts1 = #etcd_modify_opts{
-        key = "/prev_value", prev_value = "1",
+        key = "/testing_entry/prev_value", prev_value = "1",
         value = "2"},
-    {"value=2", "/prev_value?prevValue=1"} = etcd_worker:generate_modify_url_and_data_from_opts(Opts1),
+    {"value=2", "/testing_entry/prev_value?prevValue=1"} = etcd_worker:generate_modify_url_and_data_from_opts(Opts1),
     ok.
 
 set_value(_) ->
-    {ok,_ } = etcd:set("/message", "1").
+    {ok,_ } = etcd:set("/testing_entry/message", "1").
 
 set_value_with_ttl(_) ->
-    {ok,_ } = etcd:set("/ttlmsg", "1", 1),
+    {ok,_ } = etcd:set("/testing_entry/ttlmsg", "1", 1),
     timer:sleep(2000),
-    {fail, not_found} = etcd:get("/ttlmsg"),
+    {fail, not_found} = etcd:get("/testing_entry/ttlmsg"),
     ok.
 
 refresh_value_with_ttl(_) ->
-    {ok,_ } = etcd:set("/ttlmsg", "1", 1),
+    {ok,_ } = etcd:set("/testing_entry/ttlmsg", "1", 1),
     timer:sleep(500),
-    {ok,_ } = etcd:set("/ttlmsg", "", 2),
+    {ok,_ } = etcd:set("/testing_entry/ttlmsg", "", 2),
     timer:sleep(600),
-    {ok, _} = get_one_node_value("/ttlmsg"),
-    etcd:delete("/ttlmsg").
+    {ok, _} = get_one_node_value("/testing_entry/ttlmsg"),
+    etcd:delete("/testing_entry/ttlmsg").
 
 refresh_ttl_only(_) ->
-    {ok,_ } = etcd:set("/ttlmsg", "1", 1),
+    {ok,_ } = etcd:set("/testing_entry/ttlmsg", "1", 1),
     timer:sleep(500),
     Opts = #etcd_modify_opts{
-        key = "/ttlmsg",
+        key = "/testing_entry/ttlmsg",
         ttl = 2,
         refresh = true
         },
     {ok,_ } = etcd:set(Opts),
     timer:sleep(600),
-    {ok, _} = get_one_node_value("/ttlmsg"),
+    {ok, _} = get_one_node_value("/testing_entry/ttlmsg"),
     timer:sleep(2000),
-    {fail, not_found} = etcd:get("/ttlmsg"),
+    {fail, not_found} = etcd:get("/testing_entry/ttlmsg"),
     ok.
 
 get_value(_) ->
-    {ok, <<"1">>} = get_one_node_value("/message").
+    {ok, <<"1">>} = get_one_node_value("/testing_entry/message").
 
 watch_value(_) ->
     %% this test is a little care about timing...
     Callback = fun(_V) ->
-        {ok, _ } = etcd:set("/test1", "1"),
+        {ok, _ } = etcd:set("/testing_entry/test1", "1"),
         ok
     end,
-    ok = etcd:watch("/message", Callback),
+    ok = etcd:watch("/testing_entry/message", Callback),
     timer:sleep(1000),
 
-    {ok,Msg } = etcd:set("/message", "2"),
+    {ok,Msg } = etcd:set("/testing_entry/message", "2"),
     ct:log(Msg),
     timer:sleep(1000),
 
     %% stop after it's triggered
-    {ok, <<"1">>} = get_one_node_value("/test1"),
+    {ok, <<"1">>} = get_one_node_value("/testing_entry/test1"),
 
     SecondCallback = fun(_V) ->
-        {ok, _} = etcd:set("/test2", "1"),
+        {ok, _} = etcd:set("/testing_entry/test2", "1"),
         stop
     end,
 
-    ok = etcd:watch("/test1", SecondCallback),
+    ok = etcd:watch("/testing_entry/test1", SecondCallback),
     timer:sleep(1000),
 
-    {ok,_ } = etcd:set("/message", "3"),
+    {ok,_ } = etcd:set("/testing_entry/message", "3"),
 
     timer:sleep(1000),
     %% /message changed -> trigger /test chagning -> trigger /test2 changing
-    {ok, <<"1">>} = get_one_node_value("/test2"),
-    {ok, _} = etcd:delete("/test1"),
-    {ok, _} = etcd:delete("/test2").
+    {ok, <<"1">>} = get_one_node_value("/testing_entry/test2"),
+    {ok, _} = etcd:delete("/testing_entry/test1"),
+    {ok, _} = etcd:delete("/testing_entry/test2").
 
 watch_dir(_) ->
     CallBack = fun(V) ->
-        {ok, _ } = etcd:set("/dir_test", "1"),
-        ct:log("the output is :~p", V),
-        ok
+        {ok, _ } = etcd:set("/testing_entry/dir_test", "1"),
+        stop
     end,
-    ok = etcd:watch_dir("/test_dir", CallBack),
+    ok = etcd:watch_dir("/testing_entry/test_dir", CallBack),
 
-    {ok,_ } = etcd:set("/test_dir/hello", "2"),
-    {ok,_ } = etcd:set("/test_dir/hello2", "2"),
+    {ok,_ } = etcd:set("/testing_entry/test_dir/hello", "2"),
+    {ok,_ } = etcd:set("/testing_entry/test_dir/hello2", "2"),
     timer:sleep(2000),
 
     %% stop after it's triggered
-    {ok, <<"1">>} = get_one_node_value("/dir_test").
+    {ok, <<"1">>} = get_one_node_value("/testing_entry/dir_test"),
+    etcd:delete("/testing_entry/dir_test"),
+    ok.
 
 get_dir(_) ->
-    {ok, Body} = etcd:get("/test_dir"),
+    {ok, Body} = etcd:get("/testing_entry/test_dir"),
     ct:log(Body),
     ok.
 
 delete_value(_) ->
-    {ok, _} = etcd:delete("/message").
+    {ok, _} = etcd:delete("/testing_entry/message").
 
 get_one_node_value(Key) ->
     {ok, Body} = etcd:get(Key),

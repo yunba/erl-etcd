@@ -12,7 +12,6 @@
 
 -define(SERVER, ?MODULE).
 
-%% export for testing perpose
 -export([generate_modify_url_and_data_from_opts/1, generate_read_str_from_opts/1]).
 -include("etcd.hrl").
 
@@ -21,15 +20,9 @@
 %%%===================================================================
 -export([start_link/1]).
 
-%% export for spawn
--export([etcd_action/4, start_watch/2]).
 
 start_link(Args) ->
     gen_server:start_link({local, ?SERVER}, ?MODULE, [Args], []).
-
-start_watch(Opts, Callback) ->
-    Pid = spawn_link(?MODULE, etcd_action, [watch, "", Opts, Callback]),
-    {ok, Pid}.
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -66,9 +59,9 @@ handle_cast(Msg, State) ->
         {watch, Opts, Callback} ->
             ChildSpec = {
                 {Opts, Callback},   % use {opts, callback} as id
-                {?MODULE, start_watch, [Opts, Callback]},
+                {etcd_watch_behaviour, start_watch, [Opts, Callback]},
                 transient, 5000,
-                worker, [?MODULE]},
+                worker, [etcd_watch_behaviour, ?MODULE]},
             etcd_sup:add_child(ChildSpec);
         _ ->
             ok
@@ -82,6 +75,7 @@ handle_info(Info, State) ->
             NewPeer = get_health_peer(EtcdPeers),
             case NewPeer of
                 undefined -> 
+                    %% no peer is on, wait 5s and re-send
                     timer:send_after(5000, self(), peer_down),
                     State;
                 _ -> 
@@ -129,7 +123,6 @@ check_peer_alive(Url) ->
             false
     end.
 
-%% handle all opts
 etcd_action(set, V2Url, Opts) ->
     Header = [{"Content-Type", "application/x-www-form-urlencoded"}],
     {Body, QueryStr}= generate_modify_url_and_data_from_opts(Opts), 
@@ -187,39 +180,7 @@ etcd_action(delete, V2Url, Opts) ->
             {fail, Reason}
     end.
 
-%% handle all opts
-etcd_action(watch, Url, Opts, Callback) ->
-    V2Url = case Url of
-        "" ->
-            Peer = gen_server:call(?MODULE, {peer}),
-            Peer ++ "/v2";
-        _ -> Url
-    end,
 
-    OptStr = generate_read_str_from_opts(Opts#etcd_read_opts{wait = true}),
-
-    case ibrowse:send_req(V2Url ++ "/keys" ++ OptStr, [], get, [], [], 60000) of
-        {ok, ReturnCode, _Headers, Body} when ReturnCode == "200"->
-            NewOpts = case get_modified_index_from_response_body(Body) of
-                {ok, NewModifiedIndex} -> 
-                    NewIndex = NewModifiedIndex + 1,
-                    Opts#etcd_read_opts{modified_index = NewIndex};
-                _ -> Opts
-            end,
-            CallbackRet = Callback(Body),
-            case CallbackRet of
-                ok -> etcd_action(watch, V2Url, NewOpts, Callback);
-                stop -> ok;
-                _ -> error
-            end;
-        {error,{conn_failed,{error,econnrefused}}} ->
-            ?MODULE ! peer_down,
-            etcd_action(watch, "", Opts, Callback);
-        _ ->
-            etcd_action(watch, V2Url, Opts, Callback)
-    end.
-
-%% need to be tested
 generate_read_str_from_opts(Opts) ->
     case Opts of
         #etcd_read_opts{
@@ -313,14 +274,3 @@ generate_modify_url_and_data_from_opts(Opts) ->
         _ -> ""
     end.
 
-%% FIXME: what if the body returns a list
-get_modified_index_from_response_body(Body) ->
-    case jiffy:decode(Body) of
-        {Props} ->
-            %% no error, return value
-            {NodeValue} = proplists:get_value(<<"node">>, Props),
-            Value = proplists:get_value(<<"modifiedIndex">>, NodeValue),
-            {ok, Value};
-        _ ->
-            {fail, wrong_json_body}
-    end.
