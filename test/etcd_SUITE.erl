@@ -13,12 +13,19 @@ all() ->
         refresh_ttl_only,
         only_work_when_prev_exist,
         only_work_when_prev_value,
+        only_work_when_prev_index,
         get_value,
         watch_value,
         watch_dir,
         get_dir,
         delete_value
     ].
+
+only_work_when_prev_index(_) ->
+    etcd:delete("/prev_index"),
+    {ok, Body} = etcd:set("/prev_exist", "1"),
+    %%TODO
+    ok.
 
 only_work_when_prev_exist(_) ->
     etcd:delete("/prev_exist"),

@@ -22,11 +22,14 @@
 -export([start_link/1]).
 
 %% export for spawn
--export([etcd_action/4]).
+-export([etcd_action/4, start_watch/2]).
 
 start_link(Args) ->
     gen_server:start_link({local, ?SERVER}, ?MODULE, [Args], []).
 
+start_watch(Opts, Callback) ->
+    Pid = spawn_link(?MODULE, etcd_action, [watch, "", Opts, Callback]),
+    {ok, Pid}.
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -42,8 +45,11 @@ init([EtcdPeers]) ->
     end.
 
 handle_call(Request, _From, State) ->
-    UrlForV2 = proplists:get_value(peer,State) ++ "/v2", 
+    Peer = proplists:get_value(peer,State),
+    UrlForV2 = Peer ++ "/v2", 
     Reply = case Request of
+        {peer} ->
+            Peer;
         {set, Opts} ->
             etcd_action(set, UrlForV2, Opts);
         {get, Opts} ->
@@ -56,11 +62,14 @@ handle_call(Request, _From, State) ->
 
 
 handle_cast(Msg, State) ->
-    UrlForV2 = proplists:get_value(peer,State) ++ "/v2", 
     case Msg of
         {watch, Opts, Callback} ->
-            %% TODO: upgrade to gen_fsm and mount it on a supervisor
-            spawn(?MODULE, etcd_action, [watch, UrlForV2, Opts, Callback]);
+            ChildSpec = {
+                {Opts, Callback},   % use {opts, callback} as id
+                {?MODULE, start_watch, [Opts, Callback]},
+                transient, 5000,
+                worker, [?MODULE]},
+            etcd_sup:add_child(ChildSpec);
         _ ->
             ok
     end,
@@ -177,8 +186,16 @@ etcd_action(delete, V2Url, Opts) ->
         Reason ->
             {fail, Reason}
     end.
+
 %% handle all opts
-etcd_action(watch, V2Url, Opts, Callback) ->
+etcd_action(watch, Url, Opts, Callback) ->
+    V2Url = case Url of
+        "" ->
+            Peer = gen_server:call(?MODULE, {peer}),
+            Peer ++ "/v2";
+        _ -> Url
+    end,
+
     OptStr = generate_read_str_from_opts(Opts#etcd_read_opts{wait = true}),
 
     case ibrowse:send_req(V2Url ++ "/keys" ++ OptStr, [], get, [], [], 60000) of
@@ -196,8 +213,8 @@ etcd_action(watch, V2Url, Opts, Callback) ->
                 _ -> error
             end;
         {error,{conn_failed,{error,econnrefused}}} ->
-            self() ! peer_down,
-            etcd_action(watch, V2Url, Opts, Callback);
+            ?MODULE ! peer_down,
+            etcd_action(watch, "", Opts, Callback);
         _ ->
             etcd_action(watch, V2Url, Opts, Callback)
     end.
