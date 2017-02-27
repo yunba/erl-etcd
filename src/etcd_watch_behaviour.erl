@@ -9,6 +9,7 @@ start_watch(Opts, Callback) ->
     {ok, Pid}.
 
 do_watch(Url, Opts, Callback) ->
+    %% there is some chance that a peer is down so you will have to retrieve the url from etcd server
     V2Url = case Url of
         "" ->
             Peer = etcd:get_current_peer(),
@@ -30,9 +31,10 @@ do_watch(Url, Opts, Callback) ->
                     end,
                     CallbackRet = Callback(Body),
                     case CallbackRet of
+                        %% only stop will make the watching behaviour stop
                         ok -> do_watch(V2Url, NewOpts, Callback);
                         stop -> ok;
-                        _ -> error
+                        _ -> do_watch(V2Url, NewOpts, Callback)
                     end;
                 "400" ->
                     NewOpts = case get_modified_index_from_400_response_body(Body) of
