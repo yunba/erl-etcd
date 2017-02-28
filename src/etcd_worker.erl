@@ -19,7 +19,7 @@
 %%% API
 %%%===================================================================
 -export([start_link/1]).
-
+-export([etcd_action/3]).
 
 start_link(Args) ->
     gen_server:start_link({local, ?SERVER}, ?MODULE, [Args], []).
@@ -43,12 +43,8 @@ handle_call(Request, _From, State) ->
     Reply = case Request of
         {peer} ->
             Peer;
-        {set, Opts} ->
-            etcd_action(set, UrlForV2, Opts);
-        {get, Opts} ->
-            etcd_action(get, UrlForV2, Opts);
-        {delete, Opts} ->
-            etcd_action(delete, UrlForV2, Opts)
+        _ ->
+            ok
     end,
 
     {reply, Reply, State}.
@@ -137,7 +133,7 @@ etcd_action(set, V2Url, Opts) ->
                     {fail, {wrong_response_code, Body}}
             end;
         {error,{conn_failed,{error,econnrefused}}} ->
-            self() ! peer_down,
+            ?MODULE ! peer_down,
             {fail, peer_down};
         Reason ->
             {fail, Reason}
@@ -155,7 +151,7 @@ etcd_action(get, V2Url, Opts) ->
                     {fail, {wrong_response_code, Body}}
             end;
         {error,{conn_failed,{error,econnrefused}}} ->
-            self() ! peer_down,
+            ?MODULE ! peer_down,
             {fail, peer_down};
         Reason ->
             {fail, Reason}
@@ -174,7 +170,7 @@ etcd_action(delete, V2Url, Opts) ->
                     {fail, {wrong_response_code, Body}}
             end;
         {error,{conn_failed,{error,econnrefused}}} ->
-            self() ! peer_down,
+            ?MODULE ! peer_down,
             {fail, peer_down};
         Reason ->
             {fail, Reason}

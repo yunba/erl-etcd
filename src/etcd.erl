@@ -1,7 +1,6 @@
 -module(etcd).
 
 -export([set/3, set/2, set/1, get/1, delete/1, watch/2, watch_dir/2, get_current_peer/0]).
--export([test/0]).
 -include("etcd.hrl").
 
 %%%% set up a key with value with a TTL value(in seconds).
@@ -9,46 +8,51 @@
 -spec set(Key::list(), Value::list(), TTL::integer()) -> {ok, list()}| {fail, Reason::atom()}.
 set(Key, Value, TTL) ->
     Opt = #etcd_modify_opts{key = Key, value = Value, ttl = TTL},
-    gen_server:call(etcd_worker, {set, Opt}).
+    Peer = get_current_peer(),
+    etcd_worker:etcd_action(set, Peer ++ "/v2", Opt).
 
 %%%% set up a key with value WITHOUT a TTL value.
 %%%% return is {ok, response string list from etcd}
 -spec set(Key::list(), Value::list()) -> {ok, list()} | {fail, Reason::atom()}.
 set(Key, Value ) ->
     Opt = #etcd_modify_opts{key = Key, value = Value},
-    gen_server:call(etcd_worker, {set, Opt}).
+    Peer = get_current_peer(),
+    etcd_worker:etcd_action(set, Peer ++ "/v2", Opt).
 
 %%%% MasterMode, allow all parameters
 %%%% return is {ok, response string list from etcd}
 -spec set(Opts::#etcd_modify_opts{}) -> {ok, list()}| {fail, Reason::atom()}.
 set(Opts) ->
-    gen_server:call(etcd_worker, {set, Opts}).
+    Peer = get_current_peer(),
+    etcd_worker:etcd_action(set, Peer ++ "/v2", Opts).
 
 %%%% get the value of a key/dir or just input with an etcd_read_opts.
 %%%% return is {ok, response string list from etcd}
 %%%% if the key doesn't exist, return {fail, not_found}
 -spec get(KeyOrOpts::list() | #etcd_read_opts{}) -> {ok, list()}| {fail, Reason::atom()}.
 get(KeyOrOpts) ->
-    case is_record(KeyOrOpts, etcd_read_opts) of
+    Opts = case is_record(KeyOrOpts, etcd_read_opts) of
         true ->
-            gen_server:call(etcd_worker, {get, KeyOrOpts});
+            KeyOrOpts;
         false ->
-            Opt = #etcd_read_opts{key = KeyOrOpts},
-            gen_server:call(etcd_worker, {get, Opt})
-    end.
+            #etcd_read_opts{key = KeyOrOpts}
+    end,
+    Peer = get_current_peer(),
+    etcd_worker:etcd_action(get, Peer ++ "/v2", Opts).
 
 %%%% delete the value of a key/dir or just input with an etcd_modify_opts.
 %%%% return is {ok, response string list from etcd}
 %%%% if the key doesn't exist, it will return {ok, _} as well.
 -spec delete(KeyOrOpts::list() | #etcd_modify_opts{}) -> {ok, list()}| {fail, Reason::atom()}.
 delete(KeyOrOpts) ->
-    case is_record(KeyOrOpts, etcd_modify_opts) of
+    Opts = case is_record(KeyOrOpts, etcd_modify_opts) of
         true ->
-            gen_server:call(etcd_worker, {delete, KeyOrOpts});
+            KeyOrOpts;
         false ->
-            Opt = #etcd_modify_opts{key = KeyOrOpts},
-            gen_server:call(etcd_worker, {delete, Opt})
-    end.
+            #etcd_modify_opts{key = KeyOrOpts}
+    end,
+    Peer = get_current_peer(),
+    etcd_worker:etcd_action(delete, Peer ++ "/v2", Opts).
 
 %%% wait for the key changing event asynchronously
 %%% when the key is changed, Callback function will be called,

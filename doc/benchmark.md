@@ -1,0 +1,180 @@
+## etcd client benchmark
+
+##Env:
+
+Host:
+```
+OS: OSX 10.11.6
+CPU: 2.2GHz Intel Core i7
+RAM: 16GB 1600 Mhz DDR3
+```
+Virtual Machine:
+```
+Vmware fusion 8.5
+OS: ubunutu12.04
+Etcd version: Compiled at commit 808ee4e57c4c4f264f3c29a403ad9043234d00cb
+Etcd config: one node
+Cpu core: 1
+Erlang version: R16B
+```
+
+## script:
+
+[load_test](./load_test.erl)
+
+## output:
+```
+Start Time: 1488 263896 617663
+End Time: 1488 263897 941302
+Time spend: 1323639
+Start Time: 1488 263897 941360
+End Time: 1488 263899 602248
+Time spend: 1660888
+Start Time: 1488 263899 602596
+End Time: 1488 263900 944009
+Time spend: 1341413
+Start Time: 1488 263900 944074
+End Time: 1488 263902 279501
+Time spend: 1335427
+Start Time: 1488 263902 279820
+End Time: 1488 263903 641030
+Time spend: 1361210
+Start Time: 1488 263903 641108
+End Time: 1488 263905 91374
+Time spend: 1450266
+Start Time: 1488 263905 91433
+End Time: 1488 263906 496394
+Time spend: 1404961
+Start Time: 1488 263906 496451
+End Time: 1488 263907 906842
+Time spend: 1410391
+Start Time: 1488 263907 907169
+End Time: 1488 263909 581520
+Time spend: 1674351
+Start Time: 1488 263909 581877
+End Time: 1488 263910 948208
+Time spend: 1366331
+Start Time: 1488 263910 948648
+End Time: 1488 263912 286899
+Time spend: 1338251
+Start Time: 1488 263912 286955
+End Time: 1488 263913 693368
+Time spend: 1406413
+Start Time: 1488 263913 693426
+End Time: 1488 263915 193685
+Time spend: 1500259
+Start Time: 1488 263915 193991
+End Time: 1488 263916 542316
+Time spend: 1348325
+Start Time: 1488 263916 542680
+End Time: 1488 263917 876162
+Time spend: 1333482
+Start Time: 1488 263917 876545
+End Time: 1488 263919 955416
+Time spend: 2078871
+Start Time: 1488 263919 955765
+End Time: 1488 263921 965913
+Time spend: 2010148
+Start Time: 1488 263921 965969
+End Time: 1488 263924 32338
+Time spend: 2066369
+Start Time: 1488 263924 32399
+End Time: 1488 263925 986508
+Time spend: 1954109
+Start Time: 1488 263925 986843
+End Time: 1488 263927 948711
+Time spend: 1961868
+Start Time: 1488 263927 948768
+End Time: 1488 263930 25418
+Time spend: 2076650
+Start Time: 1488 263930 25798
+End Time: 1488 263932 6846
+Time spend: 1981048
+Start Time: 1488 263932 7217
+End Time: 1488 263933 371305
+Time spend: 1364088
+Start Time: 1488 263933 371601
+End Time: 1488 263934 796504
+Time spend: 1424903
+Start Time: 1488 263934 796563
+End Time: 1488 263936 171849
+Time spend: 1375286
+Start Time: 1488 263936 172207
+End Time: 1488 263937 495675
+Time spend: 1323468
+Start Time: 1488 263937 495733
+End Time: 1488 263939 126937
+Time spend: 1631204
+Start Time: 1488 263939 127266
+End Time: 1488 263940 433913
+Time spend: 1306647
+Start Time: 1488 263940 436629
+End Time: 1488 263941 769312
+Time spend: 1332683
+Start Time: 1488 263941 769696
+End Time: 1488 263943 117344
+Time spend: 1347648
+Start Time: 1488 263943 117704
+End Time: 1488 263944 524072
+Time spend: 1406368
+Start Time: 1488 263944 524422
+End Time: 1488 263945 880050
+Time spend: 1355628
+Start Time: 1488 263945 880118
+End Time: 1488 263947 191077
+Time spend: 1310959
+Start Time: 1488 263947 191441
+End Time: 1488 263948 683076
+Time spend: 1491635
+Start Time: 1488 263948 683139
+End Time: 1488 263950 107130
+Time spend: 1423991
+Start Time: 1488 263950 107493
+End Time: 1488 263951 419048
+Time spend: 1311555
+Start Time: 1488 263951 419368
+End Time: 1488 263952 747506
+Time spend: 1328138
+Start Time: 1488 263952 747875
+End Time: 1488 263954 167805
+Time spend: 1419930
+Start Time: 1488 263954 168137
+End Time: 1488 263955 476402
+Time spend: 1308265
+Start Time: 1488 263955 476722
+End Time: 1488 263956 823803
+Time spend: 1347081
+Start Time: 1488 263956 823863
+End Time: 1488 263958 319876
+Time spend: 1496013
+Start Time: 1488 263958 319964
+End Time: 1488 263959 773281
+Time spend: 1453317
+Start Time: 1488 263959 773646
+End Time: 1488 263961 156869
+Time spend: 1383223
+Start Time: 1488 263961 157187
+End Time: 1488 263962 493495
+Time spend: 1336308
+Start Time: 1488 263962 493573
+End Time: 1488 263963 991419
+Time spend: 1497846
+Start Time: 1488 263963 991480
+End Time: 1488 263965 306859
+Time spend: 1315379
+Start Time: 1488 263965 306918
+End Time: 1488 263966 684670
+Time spend: 1377752
+Start Time: 1488 263966 684734
+End Time: 1488 263968 191133
+Time spend: 1506399
+Start Time: 1488 263968 191202
+End Time: 1488 263969 745704
+Time spend: 1554502
+Start Time: 1488 263969 746056
+End Time: 1488 263971 60090
+Time spend: 1314034
+ok
+```
+
+About 1.3s/3000 request, including 1000 set, 1000 get, 1000 delete. 
