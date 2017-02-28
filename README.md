@@ -38,6 +38,10 @@ etcd:watch_dir("/test_dir", Callback).
 
 Refer to `src/etcd.erl` to see more details about APIs.
 
+## v0.1-beta
+- All wait behaviour will be monitored by etcd_sup
+- Add almost all opt support
+
 ## v0.1-alpha
 This is the first alpha version of etcd erlang client. Supporting:
 - Basic CURD
