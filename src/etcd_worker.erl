@@ -39,19 +39,9 @@ init([EtcdPeers]) ->
 
 handle_call(Request, _From, State) ->
     Peer = proplists:get_value(peer,State),
-    UrlForV2 = Peer ++ "/v2", 
     Reply = case Request of
         {peer} ->
             Peer;
-        _ ->
-            ok
-    end,
-
-    {reply, Reply, State}.
-
-
-handle_cast(Msg, State) ->
-    case Msg of
         {watch, Opts, Callback} ->
             ChildSpec = {
                 {Opts, Callback},   % use {opts, callback} as id
@@ -62,6 +52,11 @@ handle_cast(Msg, State) ->
         _ ->
             ok
     end,
+
+    {reply, Reply, State}.
+
+
+handle_cast(_Msg, State) ->
     {noreply, State}.
 
 handle_info(Info, State) ->

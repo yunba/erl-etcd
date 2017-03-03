@@ -1,6 +1,6 @@
 -module(etcd).
 
--export([set/3, set/2, set/1, get/1, delete/1, watch/2, watch_dir/2, get_current_peer/0]).
+-export([set/3, set/2, set/1, get/1, delete/1, watch/2, watch_dir/2, stop_watch/1, get_current_peer/0]).
 -include("etcd.hrl").
 
 %%%% set up a key with value with a TTL value(in seconds).
@@ -59,27 +59,33 @@ delete(KeyOrOpts) ->
 %%% and the input will be the response string from etcd.
 %%% the Callback should return ok to continue waiting, or stop to exit the waiting.
 %%% Alarm: This API won't work for dir
--spec watch(KeyOrOpts::list() | #etcd_read_opts{}, Callback::fun((list())->(ok|stop))) -> ok.
+-spec watch(KeyOrOpts::list() | #etcd_read_opts{}, Callback::fun((list())->(ok|stop))) -> {ok, (pid()|undefined)} | {error, atom()}.
 watch(KeyOrOpts, Callback) ->
     Opts = case is_record(KeyOrOpts, etcd_read_opts) of
         true -> KeyOrOpts;
         false ->
             #etcd_read_opts{key = KeyOrOpts, modified_index = undefined}
     end,
-    gen_server:cast(etcd_worker, {watch, Opts, Callback}).
+    gen_server:call(etcd_worker, {watch, Opts, Callback}).
 
 %%% Wait for the dir changing event asynchronously.
+%%% A pid is returned for termiating
 %%% when the any key in the dir is changed, Callback function will be called,
 %%% and the input will be the response string from etcd.
 %%% the Callback should return ok to continue waiting, or stop to exit the waiting.
--spec watch_dir(KeyOrOpts::list()| #etcd_read_opts{}, Callback::fun((list())->(ok|stop))) -> ok.
+-spec watch_dir(KeyOrOpts::list()| #etcd_read_opts{}, Callback::fun((list())->(ok|stop))) -> {ok, (pid()|undefined)} | {error, atom()}.
 watch_dir(KeyOrOpts, Callback) ->
     Opts = case is_record(KeyOrOpts, etcd_read_opts) of
         true -> KeyOrOpts;
         false ->
             #etcd_read_opts{key = KeyOrOpts, modified_index = undefined, recursive = true}
            end,
-    gen_server:cast(etcd_worker, {watch, Opts, Callback}).
+    gen_server:call(etcd_worker, {watch, Opts, Callback}).
+
+%%% stop watching
+-spec stop_watch(Pid::pid()) -> ok|{error, term()}
+stop_watch(Pid) ->
+    etcd_sup:stop_child(Pid).
 
 get_current_peer() ->
     gen_server:call(etcd_worker, {peer}).

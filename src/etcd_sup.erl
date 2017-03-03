@@ -21,6 +21,9 @@ start_link() ->
 add_child(ChildSpec) ->
     supervisor:start_child(?MODULE, ChildSpec).
 
+stop_child(Pid) ->
+    supervisor:terminate_child(?MODULE, Pid).
+
 %% ===================================================================
 %% Supervisor callbacks
 %% ===================================================================

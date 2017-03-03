@@ -126,7 +126,7 @@ watch_value(_) ->
         {ok, _ } = etcd:set("/testing_entry/test1", "1"),
         ok
     end,
-    ok = etcd:watch("/testing_entry/message", Callback),
+    {ok, _}= etcd:watch("/testing_entry/message", Callback),
     timer:sleep(1000),
 
     {ok,Msg } = etcd:set("/testing_entry/message", "2"),
@@ -141,7 +141,7 @@ watch_value(_) ->
         stop
     end,
 
-    ok = etcd:watch("/testing_entry/test1", SecondCallback),
+    {ok, _} = etcd:watch("/testing_entry/test1", SecondCallback),
     timer:sleep(1000),
 
     {ok,_ } = etcd:set("/testing_entry/message", "3"),
@@ -157,7 +157,7 @@ watch_dir(_) ->
         {ok, _ } = etcd:set("/testing_entry/dir_test", "1"),
         stop
     end,
-    ok = etcd:watch_dir("/testing_entry/test_dir", CallBack),
+    {ok, _}= etcd:watch_dir("/testing_entry/test_dir", CallBack),
 
     {ok,_ } = etcd:set("/testing_entry/test_dir/hello", "2"),
     {ok,_ } = etcd:set("/testing_entry/test_dir/hello2", "2"),
