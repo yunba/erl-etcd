@@ -40,6 +40,15 @@ init([EtcdPeers]) ->
 handle_call(Request, _From, State) ->
     Peer = proplists:get_value(peer,State),
     Reply = case Request of
+        {peer_down} ->
+            EtcdPeers = proplists:get_value(etcds,State),
+            NewPeer = get_health_peer(EtcdPeers),
+            case NewPeer of
+                undefined ->
+                    erlang:send_after(5000, self(), peer_down);
+                _ ->
+                    NewPeer
+            end;
         {peer} ->
             Peer;
         {watch, Opts, Callback} ->
@@ -52,8 +61,15 @@ handle_call(Request, _From, State) ->
         _ ->
             ok
     end,
+    NewState = case Request of
+        {peer_down} when reply =/= undefined ->
+            CleanState = proplists:delete(peer, State),
+            CleanState ++ [{peer, Reply}];
+        _ ->
+            State
+    end,
 
-    {reply, Reply, State}.
+    {reply, Reply, NewState}.
 
 
 handle_cast(_Msg, State) ->
@@ -67,7 +83,7 @@ handle_info(Info, State) ->
             case NewPeer of
                 undefined -> 
                     %% no peer is on, wait 5s and re-send
-                    timer:send_after(5000, self(), peer_down),
+                    erlang:send_after(5000, self(), peer_down),
                     State;
                 _ -> 
                     %% update old peer to new peer
@@ -116,7 +132,7 @@ check_peer_alive(Url) ->
 
 etcd_action(set, V2Url, Opts) ->
     Header = [{"Content-Type", "application/x-www-form-urlencoded"}],
-    {Body, QueryStr}= generate_modify_url_and_data_from_opts(Opts), 
+    {Body, QueryStr} = generate_modify_url_and_data_from_opts(Opts), 
     case ibrowse:send_req(V2Url ++ "/keys" ++ QueryStr, Header, put, Body, [], 5000) of
         {ok, ReturnCode, _Headers, RetBody} ->
             case ReturnCode of
@@ -128,8 +144,12 @@ etcd_action(set, V2Url, Opts) ->
                     {fail, {wrong_response_code, Body}}
             end;
         {error,{conn_failed,{error,econnrefused}}} ->
-            ?MODULE ! peer_down,
-            {fail, peer_down};
+            case gen_server:call(?MODULE, {peer_down}) of
+                undefined ->
+                    {fail, peer_down};
+                NewPeer ->
+                    etcd_action(set, NewPeer ++ "/v2/keys", Opts)
+            end;
         Reason ->
             {fail, Reason}
     end;
@@ -146,8 +166,12 @@ etcd_action(get, V2Url, Opts) ->
                     {fail, {wrong_response_code, Body}}
             end;
         {error,{conn_failed,{error,econnrefused}}} ->
-            ?MODULE ! peer_down,
-            {fail, peer_down};
+            case gen_server:call(?MODULE, {peer_down}) of
+                undefined ->
+                    {fail, peer_down};
+                NewPeer ->
+                    etcd_action(get, NewPeer ++ "/v2/keys", Opts)
+            end;
         Reason ->
             {fail, Reason}
     end;
@@ -165,8 +189,12 @@ etcd_action(delete, V2Url, Opts) ->
                     {fail, {wrong_response_code, Body}}
             end;
         {error,{conn_failed,{error,econnrefused}}} ->
-            ?MODULE ! peer_down,
-            {fail, peer_down};
+            case gen_server:call(?MODULE, {peer_down}) of
+                undefined ->
+                    {fail, peer_down};
+                NewPeer ->
+                    etcd_action(delete, NewPeer ++ "/v2/keys", Opts)
+            end;
         Reason ->
             {fail, Reason}
     end.
@@ -262,6 +290,6 @@ generate_modify_url_and_data_from_opts(Opts) ->
             QueryStr = lists:foldl(fun gen_query_str/2, "", QueryList5),
 
             {DataStr, Key ++ QueryStr};
-        _ -> ""
+        _ -> {"", ""}
     end.
 

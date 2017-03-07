@@ -21,7 +21,8 @@ all() ->
         watch_value,
         watch_dir,
         get_dir,
-        delete_value
+        delete_value,
+        get_other_peer_if_current_one_is_not_alive
     ].
 
 only_work_when_prev_index(_) ->
@@ -190,3 +191,16 @@ get_value_from_response_body(Body) ->
         _ ->
             {fail, wrong_json_body}
     end.
+
+get_other_peer_if_current_one_is_not_alive(_)->
+    Opts1 = #etcd_modify_opts{
+        key = "/testing_entry/message",
+        value = "2"},
+    Opts2 = #etcd_read_opts{
+        key = "/testing_entry/message"},
+    Opts3 = #etcd_modify_opts{
+        key = "/testing_entry/message"
+        },
+    {ok, _} = etcd_worker:etcd_action(set, "http://localhost:1111/v2/keys",Opts1),
+    {ok, _} = etcd_worker:etcd_action(get, "http://localhost:1111/v2/keys", Opts2),
+    {ok, _} = etcd_worker:etcd_action(delete, "http://localhost:1111/v2/keys", Opts3).
