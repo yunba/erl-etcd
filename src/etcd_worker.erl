@@ -130,6 +130,29 @@ check_peer_alive(Url) ->
             false
     end.
 
+etcd_action(create, V2Url, Opts) ->
+    Header = [{"Content-Type", "application/x-www-form-urlencoded"}],
+    {Body, QueryStr} = generate_modify_url_and_data_from_opts(Opts), 
+    case ibrowse:send_req(V2Url ++ "/keys" ++ QueryStr, Header, post, Body, [], 5000) of
+        {ok, ReturnCode, _Headers, RetBody} ->
+            case ReturnCode of
+                "200" -> 
+                    {ok, RetBody};
+                "201" -> 
+                    {ok, RetBody};
+                _ -> 
+                    {fail, {wrong_response_code, Body}}
+            end;
+        {error,{conn_failed,{error,econnrefused}}} ->
+            case gen_server:call(?MODULE, {peer_down}) of
+                undefined ->
+                    {fail, peer_down};
+                NewPeer ->
+                    etcd_action(post, NewPeer ++ "/v2/keys", Opts)
+            end;
+        Reason ->
+            {fail, Reason}
+    end;
 etcd_action(set, V2Url, Opts) ->
     Header = [{"Content-Type", "application/x-www-form-urlencoded"}],
     {Body, QueryStr} = generate_modify_url_and_data_from_opts(Opts), 

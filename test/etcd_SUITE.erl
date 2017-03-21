@@ -11,6 +11,7 @@ all() ->
         gen_read_opt_querys,
         gen_write_opt_data_and_querys,
         set_value,
+        create_with_auto_increase_key,
         set_value_with_ttl,
         refresh_value_with_ttl,
         refresh_ttl_only,
@@ -64,6 +65,14 @@ only_work_when_prev_value(_) ->
     etcd:set(Opts2),
     {ok, <<"2">>} = get_one_node_value("/testing_entry/prev_value"),
     ok.
+
+create_with_auto_increase_key(_) ->
+    Opts1 = #etcd_modify_opts{
+        key = "/testing_entry/increase_key",
+        value = "2"},
+    etcd:create_with_auto_increase_key(Opts1),
+    {ok, _} = etcd:get("/testing_entry/increase_key").
+
 
 init_per_suite(Config) ->
     {ok, _} = application:ensure_all_started(etcd),

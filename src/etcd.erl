@@ -1,6 +1,11 @@
 -module(etcd).
 
--export([set/3, set/2, set/1, get/1, delete/1, watch/2, watch_dir/2, stop_watch/1, get_current_peer/0]).
+-export([
+    set/3, set/2, set/1, get/1, delete/1, 
+    create_with_auto_increase_key/1,
+    watch/2, watch_dir/2, stop_watch/1,
+    get_current_peer/0
+]).
 -include("etcd.hrl").
 
 %%%% set up a key with value with a TTL value(in seconds).
@@ -25,6 +30,13 @@ set(Key, Value ) ->
 set(Opts) ->
     Peer = get_current_peer(),
     etcd_worker:etcd_action(set, Peer ++ "/v2", Opts).
+
+%%%% MasterMode, allow all parameters
+%%%% return is {ok, response string list from etcd}
+create_with_auto_increase_key(Opts) ->
+    Peer = get_current_peer(),
+    etcd_worker:etcd_action(create, Peer ++ "/v2", Opts).
+
 
 %%%% get the value of a key/dir or just input with an etcd_read_opts.
 %%%% return is {ok, response string list from etcd}
