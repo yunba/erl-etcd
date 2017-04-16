@@ -252,7 +252,7 @@ generate_read_str_from_opts(Opts) ->
             end,
             OptsStr = lists:foldl(fun gen_query_str/2, "", OptList3),
 
-            Key ++ OptsStr;
+            etcd_util:url_encode(Key) ++ OptsStr;
         _ ->
             %% Actually , you should raise an exception here,
             %% but let's just ignore it so the gen server can just return a 404
@@ -281,9 +281,9 @@ generate_modify_url_and_data_from_opts(Opts) ->
             } ->
             DataStr = case {Value, TTL }of
                 {undefined, undefined} -> "";
-                {_, undefined} -> "value=" ++ Value;
+                {_, undefined} -> "value=" ++ etcd_util:url_encode(Value);
                 {undefined, _} -> "ttl=" ++ integer_to_list(TTL);
-                {_, _} -> "value=" ++ Value ++ "&ttl=" ++ integer_to_list(TTL)
+                {_, _} -> "value=" ++ etcd_util:url_encode(Value) ++ "&ttl=" ++ integer_to_list(TTL)
             end,
 
             QueryList0 = case is_boolean(Recursive) of
@@ -303,7 +303,7 @@ generate_modify_url_and_data_from_opts(Opts) ->
                 false -> QueryList2
             end,
             QueryList4 = case is_list(PrevValue) of
-                true -> QueryList3 ++ ["prevValue=" ++ PrevValue];
+                true -> QueryList3 ++ ["prevValue=" ++ etcd_util:url_encode(PrevValue)];
                 false -> QueryList3
             end,
             QueryList5 = case is_integer(PrevIndex) of
@@ -312,7 +312,7 @@ generate_modify_url_and_data_from_opts(Opts) ->
             end,
             QueryStr = lists:foldl(fun gen_query_str/2, "", QueryList5),
 
-            {DataStr, Key ++ QueryStr};
+            {DataStr, etcd_util:url_encode(Key) ++ QueryStr};
         _ -> {"", ""}
     end.
 

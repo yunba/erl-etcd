@@ -13,6 +13,7 @@ all() ->
         set_value,
         create_with_auto_increase_key,
         set_value_with_ttl,
+        set_get_value_with_plus,
         refresh_value_with_ttl,
         refresh_ttl_only,
         only_work_when_prev_exist,
@@ -25,6 +26,7 @@ all() ->
         delete_value,
         get_other_peer_if_current_one_is_not_alive
     ].
+
 
 only_work_when_prev_index(_) ->
     etcd:delete("/testing_entry/prev_index"),
@@ -102,6 +104,10 @@ set_value_with_ttl(_) ->
     {ok,_ } = etcd:set("/testing_entry/ttlmsg", "1", 1),
     timer:sleep(2000),
     {fail, not_found} = etcd:get("/testing_entry/ttlmsg"),
+    ok.
+set_get_value_with_plus(_) ->
+    {ok,_ } = etcd:set("/testing_entry/url_encode_msg+123 ", "1234 56+123456"),
+    {ok, <<"1234 56+123456">>} = get_one_node_value("/testing_entry/url_encode_msg+123 "),
     ok.
 
 refresh_value_with_ttl(_) ->
@@ -188,6 +194,7 @@ delete_value(_) ->
 
 get_one_node_value(Key) ->
     {ok, Body} = etcd:get(Key),
+    ct:log("body is :~p", [Body]),
     get_value_from_response_body(Body).
     
 get_value_from_response_body(Body) ->
@@ -196,6 +203,7 @@ get_value_from_response_body(Body) ->
             %% no error, return value
             {NodeValue} = proplists:get_value(<<"node">>, Props),
             Value = proplists:get_value(<<"value">>, NodeValue),
+            ct:log("node value is :~p", [NodeValue]),
             {ok, Value};
         _ ->
             {fail, wrong_json_body}
