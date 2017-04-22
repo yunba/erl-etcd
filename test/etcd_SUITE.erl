@@ -106,8 +106,8 @@ set_value_with_ttl(_) ->
     {fail, not_found} = etcd:get("/testing_entry/ttlmsg"),
     ok.
 set_get_value_with_plus(_) ->
-    {ok,_ } = etcd:set("/testing_entry/url_encode_msg+123 ", "1234 56+123456"),
-    {ok, <<"1234 56+123456">>} = get_one_node_value("/testing_entry/url_encode_msg+123 "),
+    {ok,_ } = etcd:set("/testing_entry/url_encode_msg+123 ", "1234 56+123456+"),
+    {ok, <<"1234 56+1234 56+">>} = get_one_node_value("/testing_entry/url_encode_msg+123 "),
     ok.
 
 refresh_value_with_ttl(_) ->
