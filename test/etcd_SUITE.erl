@@ -24,8 +24,15 @@ all() ->
         watch_dir,
         get_dir,
         delete_value,
-        get_other_peer_if_current_one_is_not_alive
+        get_other_peer_if_current_one_is_not_alive,
+        {group, cache_with_ets}
     ].
+
+groups() ->
+    [
+        {cache_with_ets, [], [{cache_with_ets_test, all}]}
+    ].
+
 
 
 only_work_when_prev_index(_) ->
