@@ -1,4 +1,4 @@
--module(etcd_sup).
+module(etcd_sup).
 
 -behaviour(supervisor).
 
@@ -6,7 +6,7 @@
 -export([start_link/0]).
 
 %% Supervisor callbacks
--export([init/1, add_child/1]).
+-export([init/1, add_child/1, stop_child/1]).
 
 %% Helper macro for declaring children of supervisor
 -define(CHILD(I, Type, Args), {I, {I, start_link, Args}, permanent, 5000, Type, [I]}).
