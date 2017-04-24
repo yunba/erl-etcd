@@ -164,7 +164,7 @@ etcd_action(set, V2Url, Opts) ->
                 "201" -> 
                     {ok, RetBody};
                 _ -> 
-                    {fail, {wrong_response_code, Body}}
+                    {fail, {wrong_response_code, {ReturnCode, Body}}}
             end;
         {error,{conn_failed,{error,econnrefused}}} ->
             case gen_server:call(?MODULE, {peer_down}) of
@@ -186,7 +186,7 @@ etcd_action(get, V2Url, Opts) ->
                 "404" ->
                     {fail, not_found};
                 _ -> 
-                    {fail, {wrong_response_code, Body}}
+                    {fail, {wrong_response_code, {ReturnCode, Body}}}
             end;
         {error,{conn_failed,{error,econnrefused}}} ->
             case gen_server:call(?MODULE, {peer_down}) of
@@ -209,7 +209,7 @@ etcd_action(delete, V2Url, Opts) ->
                 "404" -> 
                     {ok, Body};
                 _ -> 
-                    {fail, {wrong_response_code, Body}}
+                    {fail, {wrong_response_code, {ReturnCode, Body}}}
             end;
         {error,{conn_failed,{error,econnrefused}}} ->
             case gen_server:call(?MODULE, {peer_down}) of

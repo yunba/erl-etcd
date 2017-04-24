@@ -25,12 +25,14 @@ all() ->
         get_dir,
         delete_value,
         get_other_peer_if_current_one_is_not_alive,
-        {group, cache_with_ets}
+        {group, cache_with_ets},
+        {group, json_kv}
     ].
 
 groups() ->
     [
-        {cache_with_ets, [], [{cache_with_ets_test, all}]}
+        {cache_with_ets, [], [{cache_with_ets_test, all}]},
+        {json_kv, [], [{json_kv_test, all}]}
     ].
 
 

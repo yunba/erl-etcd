@@ -34,7 +34,7 @@ set_up_clean_dir(_) ->
 
 add_key(_) ->
     ets:new(cache_with_ets_test, [named_table, public]),
-    PID = etcd_ets_cache:watch_prefix(
+    {ok, PID} = etcd_ets_cache:watch_prefix(
         "/test_dir2/inner_dir",
         fun(Key, Old, New) ->
             Key = "/test_dir2/inner_dir/case1",
