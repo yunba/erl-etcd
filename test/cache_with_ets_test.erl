@@ -43,8 +43,12 @@ add_key(_) ->
             New = "hello2",
             ets:insert(cache_with_ets_test, {add_key, ok})
         end),
+    "hello1" == etcd_ets_cache:get("/test_dir2/inner_dir/case"),
+
     etcd:set("/test_dir2/inner_dir/case1", "hello2"),
     timer:sleep(500),
+
+    "hello2" == etcd_ets_cache:get("/test_dir2/inner_dir/case"),
 
     etcd:stop_watch(PID),
     case ets:lookup(cache_with_ets_test, add_key) of

@@ -10,10 +10,14 @@
 %% as it's hard to tell if a "ABC" is a string or an array [65, 66, 67] , so I treat them as a list here,
 %% hence if you wanna set a value of string, you should input a binary, 
 
+%% Cotent should follow the jiffy's ejson format, what is ejson? try to use jiffy:decode and see the output
+-spec replace(Prefix::list(), Content::term()) -> {ok, Body::list()}|{error, Reason::term()}.
 replace(Prefix, Content) -> 
     etcd:delete(Prefix),
     set(Prefix, Content).
 
+%% Content should be a json string.
+-spec replace_from_string(Prefix::list(), Content::list()) -> {ok, Body::list()}|{error, Reason::term()}.
 replace_from_string(Prefix, String) ->
     etcd:delete(Prefix),
     set_from_string(Prefix, String).
@@ -21,6 +25,8 @@ get_max_index_key(Key) ->
     %% should change to __max_index
     Key ++ "/max_index".
 
+%% EJsonContent can be any type of ejson content
+-spec set(Prefix::list(), EJsonContent::term()) -> {ok, Body::list()} | {error, Reason::term()}.
 set(Prefix, {Key, {ObjValue}}) ->
     NextKey = Prefix ++ "/" ++ etcd_util:make_sure_list(Key),
     set(NextKey, ObjValue);
@@ -47,6 +53,7 @@ set(Prefix, ArrayValue) when is_list(ArrayValue) ->
 set(Prefix, Value) ->
     etcd:set(Prefix, etcd_util:make_sure_list(Value)).
 
+-spec set_from_string(Prefix::list(), JsonString::list()) -> {ok, Body::list()} | {error, Reason::term()}.
 set_from_string(Prefix, JsonString) ->
     JsonStringBin = etcd_util:make_sure_binary(JsonString),
     Body = jiffy:decode(JsonStringBin),
@@ -64,10 +71,8 @@ get_free_index_no(Key) ->
     end.
 
 get_as_e_json(Prefix, -1, Output) ->
-    io:format("case 3 ~p~n", [{Prefix, -1, Output}]),
     Output;
 get_as_e_json(Prefix, CurrentIndex, Output) when is_integer(CurrentIndex) ->
-    io:format("case 2 ~p~n", [{Prefix, CurrentIndex, Output}]),
     CurKey = Prefix ++ etcd_util:make_sure_list(CurrentIndex),
     NextOutput = case get_as_e_json(CurKey) of
         undefined -> Output;
@@ -76,7 +81,6 @@ get_as_e_json(Prefix, CurrentIndex, Output) when is_integer(CurrentIndex) ->
     get_as_e_json(Prefix, CurrentIndex - 1, NextOutput).
 
 get_as_e_json(Prefix, Key) ->
-    io:format("case 1 ~p~n", [{Prefix, Key}]),
     NewPrefix = Prefix ++ etcd_util:make_sure_list(Key),
     {IsArray, MaxIndex} = case etcd:get(get_max_index_key(NewPrefix)) of
         {ok, Body} ->
@@ -92,8 +96,8 @@ get_as_e_json(Prefix, Key) ->
             get_as_e_json(NewPrefix)
     end.
 
+-spec get_as_e_json(Prefix::list()) -> {EJsonBody::term()} | undefined.
 get_as_e_json(Prefix) ->
-    io:format("case 0 ~p~n", [Prefix]),
     case etcd:get(Prefix) of
         {ok, Body} ->
             {JsonBody} = jiffy:decode(Body),
@@ -116,8 +120,8 @@ get_as_e_json(Prefix) ->
             undefined
     end.
 
+-spec get_as_string(Prefix::list()) -> {JsonString::list()} | error.
 get_as_string(Prefix) ->
     EJson = get_as_e_json(Prefix),
-    io:format("final:~p", [EJson]),
     jiffy:encode(EJson).
 

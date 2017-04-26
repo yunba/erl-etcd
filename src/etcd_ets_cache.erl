@@ -46,11 +46,11 @@ watch_prefix(Prefix, Callback) ->
         Callback(KeyString, OldValue, NewValue)
     end).
 
+-spec get(Key::string()) -> {ok, Value::binary()} | {fail, not_found}.
 get(Key) ->
     case ets:lookup(etcd_ets_cache, Key) of
         [{_, Value}] when undefined =/= Value -> 
-            io:format("cache hit~n"),
-            Value;
+            {ok, Value};
         _ -> 
             case etcd:get(Key) of
                 {ok, Body} ->
