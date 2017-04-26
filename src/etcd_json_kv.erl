@@ -4,6 +4,7 @@
 
 -module(etcd_json_kv).
 -export([set/2, set_from_string/2]).
+-export([get_as_e_json/1, get_as_string/1]).
 -export([replace/2, replace_from_string/2]).
 
 %% as it's hard to tell if a "ABC" is a string or an array [65, 66, 67] , so I treat them as a list here,
@@ -17,6 +18,7 @@ replace_from_string(Prefix, String) ->
     etcd:delete(Prefix),
     set_from_string(Prefix, String).
 get_max_index_key(Key) ->
+    %% should change to __max_index
     Key ++ "/max_index".
 
 set(Prefix, {Key, {ObjValue}}) ->
@@ -60,3 +62,62 @@ get_free_index_no(Key) ->
             0;
         _ -> {fail, internal_error}
     end.
+
+get_as_e_json(Prefix, -1, Output) ->
+    io:format("case 3 ~p~n", [{Prefix, -1, Output}]),
+    Output;
+get_as_e_json(Prefix, CurrentIndex, Output) when is_integer(CurrentIndex) ->
+    io:format("case 2 ~p~n", [{Prefix, CurrentIndex, Output}]),
+    CurKey = Prefix ++ etcd_util:make_sure_list(CurrentIndex),
+    NextOutput = case get_as_e_json(CurKey) of
+        undefined -> Output;
+        GetObj -> [GetObj] ++ Output
+    end,
+    get_as_e_json(Prefix, CurrentIndex - 1, NextOutput).
+
+get_as_e_json(Prefix, Key) ->
+    io:format("case 1 ~p~n", [{Prefix, Key}]),
+    NewPrefix = Prefix ++ etcd_util:make_sure_list(Key),
+    {IsArray, MaxIndex} = case etcd:get(get_max_index_key(NewPrefix)) of
+        {ok, Body} ->
+            MaxIndexBin = etcd_helper:get_value_from_body(Body),
+            {true, binary_to_integer(MaxIndexBin)};
+        {fail, _} ->
+            {false, undefined}
+    end,
+    case IsArray of
+        true ->
+            get_as_e_json(NewPrefix ++ "/", MaxIndex, []);
+        false ->
+            get_as_e_json(NewPrefix)
+    end.
+
+get_as_e_json(Prefix) ->
+    io:format("case 0 ~p~n", [Prefix]),
+    case etcd:get(Prefix) of
+        {ok, Body} ->
+            {JsonBody} = jiffy:decode(Body),
+            {Node} = proplists:get_value(<<"node">>, JsonBody),
+            case proplists:get_value(<<"dir">>, Node, false) of
+                false -> 
+                    Value = proplists:get_value(<<"value">>, Node),
+                    Value;
+                true ->
+                    Nodes = proplists:get_value(<<"nodes">>, Node),
+                    RetList = lists:foldl(fun({OneNode}, CurList) ->
+                        Key = proplists:get_value(<<"key">>, OneNode),
+                        JsonKey = binary:replace(Key, etcd_util:make_sure_binary(Prefix ++ "/"), <<"">>),
+                        JsonValue = get_as_e_json(Prefix ++ "/", JsonKey),
+                        CurList ++ [{JsonKey, JsonValue}]
+                    end, [], Nodes),
+                    {RetList}
+            end;
+        _ ->
+            undefined
+    end.
+
+get_as_string(Prefix) ->
+    EJson = get_as_e_json(Prefix),
+    io:format("final:~p", [EJson]),
+    jiffy:encode(EJson).
+

@@ -120,7 +120,7 @@ get_health_peer(EtcdPeers) ->
         end, undefined, EtcdPeers).
 
 check_peer_alive(Url) ->
-    case ibrowse:send_req(Url ++ "/version", [], get, [], [], 5000) of
+    try ibrowse:send_req(Url ++ "/version", [], get, [], [], 5000) of
         {ok, ReturnCode, _Headers, _Body} ->
             case ReturnCode of
                 "200" -> true;
@@ -128,12 +128,15 @@ check_peer_alive(Url) ->
             end;
         _ ->
             false
+    catch
+        Exception:Error->
+            false
     end.
 
 etcd_action(create, V2Url, Opts) ->
     Header = [{"Content-Type", "application/x-www-form-urlencoded"}],
     {Body, QueryStr} = generate_modify_url_and_data_from_opts(Opts), 
-    case ibrowse:send_req(V2Url ++ "/keys" ++ QueryStr, Header, post, Body, [], 5000) of
+    try ibrowse:send_req(V2Url ++ "/keys" ++ QueryStr, Header, post, Body, [], 5000) of
         {ok, ReturnCode, _Headers, RetBody} ->
             case ReturnCode of
                 "200" -> 
@@ -152,11 +155,14 @@ etcd_action(create, V2Url, Opts) ->
             end;
         Reason ->
             {fail, Reason}
+    catch
+        Exception:Error->
+            {fail, {Exception, Error}}
     end;
 etcd_action(set, V2Url, Opts) ->
     Header = [{"Content-Type", "application/x-www-form-urlencoded"}],
     {Body, QueryStr} = generate_modify_url_and_data_from_opts(Opts), 
-    case ibrowse:send_req(V2Url ++ "/keys" ++ QueryStr, Header, put, Body, [], 5000) of
+    try ibrowse:send_req(V2Url ++ "/keys" ++ QueryStr, Header, put, Body, [], 5000) of
         {ok, ReturnCode, _Headers, RetBody} ->
             case ReturnCode of
                 "200" -> 
@@ -175,10 +181,13 @@ etcd_action(set, V2Url, Opts) ->
             end;
         Reason ->
             {fail, Reason}
+    catch
+        Exception:Error->
+            {fail, {Exception, Error}}
     end;
 etcd_action(get, V2Url, Opts) ->
     OptStr = generate_read_str_from_opts(Opts),
-    case ibrowse:send_req(V2Url ++ "/keys" ++ OptStr, [], get, [], [], 5000) of
+    try ibrowse:send_req(V2Url ++ "/keys" ++ OptStr, [], get, [], [], 5000) of
         {ok, ReturnCode, _Headers, Body} ->
             case ReturnCode of
                 "200" -> 
@@ -197,11 +206,14 @@ etcd_action(get, V2Url, Opts) ->
             end;
         Reason ->
             {fail, Reason}
+    catch
+        Exception:Error->
+            {fail, {Exception, Error}}
     end;
 etcd_action(delete, V2Url, Opts) ->
     {_, OptStr} = generate_modify_url_and_data_from_opts(
         Opts#etcd_modify_opts{recursive = true, refresh = undefined}) ,
-    case ibrowse:send_req(V2Url ++ "/keys" ++ OptStr, [], delete, [], [], 5000) of
+    try ibrowse:send_req(V2Url ++ "/keys" ++ OptStr, [], delete, [], [], 5000) of
         {ok, ReturnCode, _Headers, Body} ->
             case ReturnCode of
                 "200" -> 
@@ -220,6 +232,9 @@ etcd_action(delete, V2Url, Opts) ->
             end;
         Reason ->
             {fail, Reason}
+    catch
+        Exception:Error->
+            {fail, {Exception, Error}}
     end.
 
 

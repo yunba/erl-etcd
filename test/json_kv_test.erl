@@ -9,7 +9,8 @@ all() ->
         init_string,
         merge_string,
         replace_string,
-        clean
+        get_string
+%        clean
     ].
 
 clean(_) ->
@@ -44,3 +45,17 @@ replace_string(_) ->
     {ok, <<"in array">>} = etcd_SUITE:get_one_node_value("/test_json/list/0/hello"),
     {ok, <<"3">>} = etcd_SUITE:get_one_node_value("/test_json/list/1"),
     {ok, <<"4">>} = etcd_SUITE:get_one_node_value("/test_json/list/2").
+
+get_string(_) ->
+    Ret = etcd_json_kv:get_as_string("/test_json"),
+    ct:log("ret is ~p", [Ret]),
+    {DecodedObj} = jiffy:decode(Ret),
+    <<"test">> = proplists:get_value(<<"hello">>, DecodedObj),
+    {ObjBody} = proplists:get_value(<<"obj">>, DecodedObj),
+    <<"hello1">> = proplists:get_value(<<"objkey1">>, ObjBody),
+
+    ListBody = proplists:get_value(<<"list">>, DecodedObj),
+    [{ObjInArray}, <<"3">>, <<"4">>, <<"5">>] = ListBody,
+    [{<<"hello">>, <<"in array">>}] = ObjInArray,
+
+    ok.

@@ -13,7 +13,7 @@ all() ->
 
 set_up_clean_dir(_) ->
     ets:new(cache_with_ets_test, [named_table, public]),
-    PID = etcd_ets_cache:watch_prefix(
+    {ok, PID} = etcd_ets_cache:watch_prefix(
         "/test_dir2/inner_dir",
         fun(Key, Old, New) ->
             Key = "/test_dir2/inner_dir/case1",
@@ -24,6 +24,7 @@ set_up_clean_dir(_) ->
     etcd:set("/test_dir2/inner_dir/case1", "hello"),
     timer:sleep(500),
 
+    ct:log("PID is ~p", [PID]),
     etcd:stop_watch(PID),
     case ets:lookup(cache_with_ets_test, set_up_clean_dir) of
         [{set_up_clean_dir, ok}] -> ok;
@@ -55,7 +56,7 @@ add_key(_) ->
 
 delete_key(_) ->
     ets:new(cache_with_ets_test, [named_table, public]),
-    PID = etcd_ets_cache:watch_prefix(
+    {ok, PID} = etcd_ets_cache:watch_prefix(
         "/test_dir2/inner_dir",
         fun(Key, Old, New) ->
             Key = "/test_dir2/inner_dir/case1",
@@ -76,7 +77,7 @@ delete_key(_) ->
 
 delete_whole_prefix(_) -> 
     ets:new(cache_with_ets_test, [named_table, public]),
-    PID = etcd_ets_cache:watch_prefix(
+    {ok, PID} = etcd_ets_cache:watch_prefix(
         "/test_dir2/inner_dir",
         fun(Key, Old, New) ->
             Key = "/test_dir2",

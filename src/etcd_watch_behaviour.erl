@@ -19,7 +19,7 @@ do_watch(Url, Opts, Callback) ->
 
     OptStr = etcd_worker:generate_read_str_from_opts(Opts#etcd_read_opts{wait = true}),
 
-    case ibrowse:send_req(V2Url ++ "/keys" ++ OptStr, [], get, [], [], 60000) of
+    try ibrowse:send_req(V2Url ++ "/keys" ++ OptStr, [], get, [], [], 60000) of
         {ok, ReturnCode, _Headers, Body} ->
             case ReturnCode of
                 "200"->
@@ -51,6 +51,9 @@ do_watch(Url, Opts, Callback) ->
             etcd_worker ! peer_down,
             do_watch("", Opts, Callback);
         _ ->
+            do_watch(V2Url, Opts, Callback)
+    catch
+        Exception:ExceptionType ->
             do_watch(V2Url, Opts, Callback)
     end.
 

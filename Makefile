@@ -31,6 +31,6 @@ foreground: generate
 erl: compile
 	erl -pa ebin/ -pa deps/*/ebin/ -s etcd
 
-test:
+test: compile
 	ERL_AFLAGS="-config ${PWD}/rel/etcd/etc/app.config" ./rebar compile ct suite=etcd skip_deps=true
 
