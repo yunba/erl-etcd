@@ -5,11 +5,17 @@
 
 all() ->
     [
+        has_value_before_get,
         set_up_clean_dir,
         add_key,
         delete_key,
         delete_whole_prefix
     ].
+
+has_value_before_get(_) ->
+    etcd:set("/test_dir2/inner_dir/casex", "hello1"),
+    "hello1" == etcd_ets_cache:get("/test_dir2/inner_dir/casex"),
+    etcd:delete("/test_dir2/inner_dir/casex").
 
 set_up_clean_dir(_) ->
     ets:new(cache_with_ets_test, [named_table, public]),

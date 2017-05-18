@@ -55,7 +55,7 @@ get(Key) ->
             case etcd:get(Key) of
                 {ok, Body} ->
                     {JsonBody} = jiffy:decode(Body),
-                    Node = proplists:get_value(<<"node">>, JsonBody, undefined),
+                    {Node} = proplists:get_value(<<"node">>, JsonBody, undefined),
                     NewValue = get_value_from_node(Node),
                     ets:insert(etcd_ets_cache, {Key, NewValue}),
                     {ok, NewValue};
