@@ -62,7 +62,7 @@ handle_call(Request, _From, State) ->
             ok
     end,
     NewState = case Request of
-        {peer_down} when reply =/= undefined ->
+        {peer_down} when Reply =/= undefined ->
             CleanState = proplists:delete(peer, State),
             CleanState ++ [{peer, Reply}];
         _ ->
