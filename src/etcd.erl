@@ -100,5 +100,10 @@ stop_watch(Pid) ->
     etcd_sup:stop_child(Pid).
 
 get_current_peer() ->
-    gen_server:call(etcd_worker, {peer}).
+    Ret = gen_server:call(etcd_worker, {peer}),
+    case is_list(Ret) of
+        true ->
+            Ret;
+        -> ""
+    end.
 
