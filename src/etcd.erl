@@ -104,6 +104,6 @@ get_current_peer() ->
     case is_list(Ret) of
         true ->
             Ret;
-        -> ""
+        _ -> ""
     end.
 
