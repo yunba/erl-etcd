@@ -103,7 +103,10 @@ etcd_ets_cache:get("/test_dir/keyx").
 
 refer to `src/etcd_ets_cache.erl` for more details
 
-## v0.2-beta
+## v0.2.1
+- add list_dir command
+
+## v0.2.0
 - add json_kv
 - integer ets cache with etcd watch
 - bug fix for `space` and `plus` url encoding 
