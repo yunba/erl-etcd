@@ -1,7 +1,7 @@
 -module(etcd).
 
 -export([
-    set/3, set/2, set/1, get/1, delete/1, 
+    set/3, set/2, set/1, get/1, delete/1, list_dir/1,
     create_with_auto_increase_key/1,
     watch/2, watch_dir/2, stop_watch/1,
     get_current_peer/0
@@ -51,6 +51,40 @@ get(KeyOrOpts) ->
     end,
     Peer = get_current_peer(),
     etcd_worker:etcd_action(get, Peer ++ "/v2", Opts).
+
+%%%% get the value of a key/dir or just input with an etcd_read_opts.
+%%%% return is {ok, list of nodes under the dir} if success
+%%%% if the key doesn't exist, return {fail, not_found}
+%%%% if the key is not dir, reutrn {fail, not_dir}
+
+%%% list of nodes will in format : [ PropListOfEtcdRetrunedNode ]
+-spec list_dir(KeyOrOpts::list() | #etcd_read_opts{}) -> {ok, list()}| {fail, Reason::atom()}.
+list_dir(KeyOrOpts) ->
+    Opts = case is_record(KeyOrOpts, etcd_read_opts) of
+        true ->
+            KeyOrOpts;
+        false ->
+            #etcd_read_opts{key = KeyOrOpts}
+    end,
+    Peer = get_current_peer(),
+    case  etcd_worker:etcd_action(get, Peer ++ "/v2", Opts) of
+        {ok, GetResult} ->
+            case jiffy:decode(GetResult) of
+                {RetPropList} ->
+                    {NodeProp} = proplists:get_value(<<"node">>, RetPropList),
+                    IsDir = proplists:get_value(<<"dir">>, NodeProp, false),
+                    case IsDir of
+                        true ->
+                            Nodes = proplists:get_value(<<"nodes">>, NodeProp),
+                            RetrivedNodes = [Node || {Node} <- Nodes],
+                            {ok, RetrivedNodes};
+                        false ->
+                            {fail, not_dir}
+                    end
+            end;
+        _ ->
+            {fail, not_found}
+    end.
 
 %%%% delete the value of a key/dir or just input with an etcd_modify_opts.
 %%%% return is {ok, response string list from etcd}

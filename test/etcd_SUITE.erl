@@ -23,6 +23,7 @@ all() ->
         watch_value,
         watch_dir,
         get_dir,
+        list_dir,
         delete_value,
         get_other_peer_if_current_one_is_not_alive,
         {group, cache_with_ets},
@@ -195,6 +196,11 @@ watch_dir(_) ->
 
 get_dir(_) ->
     {ok, Body} = etcd:get("/testing_entry/test_dir"),
+    ct:log(Body),
+    ok.
+
+list_dir(_) ->
+    {ok, Body} = etcd:list_dir("/testing_entry/test_dir"),
     ct:log(Body),
     ok.
 
