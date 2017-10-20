@@ -156,7 +156,7 @@ watch_value(_) ->
     timer:sleep(1000),
 
     {ok,Msg } = etcd:set("/testing_entry/message", "2"),
-    ct:log(Msg),
+    ct:log("msg is :~p", [Msg]),
     timer:sleep(1000),
 
     %% stop after it's triggered
@@ -196,12 +196,12 @@ watch_dir(_) ->
 
 get_dir(_) ->
     {ok, Body} = etcd:get("/testing_entry/test_dir"),
-    ct:log(Body),
+    ct:log("the body is :~p", [Body]),
     ok.
 
 list_dir(_) ->
     {ok, Body} = etcd:list_dir("/testing_entry/test_dir"),
-    ct:log(Body),
+    ct:log("the body is :~p", [Body]),
     ok.
 
 delete_value(_) ->
