@@ -32,5 +32,5 @@ erl: compile
 	erl -pa ebin/ -pa deps/*/ebin/ -s etcd
 
 test: compile
-	ERL_AFLAGS="-config ${PWD}/rel/etcd/etc/app.config" ./rebar compile ct suite=etcd skip_deps=true
+	ERL_AFLAGS="-config ${PWD}/rel/files/app.config" ./rebar compile ct suite=etcd skip_deps=true
 

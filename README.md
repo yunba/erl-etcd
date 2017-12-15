@@ -9,11 +9,16 @@ Erlang driver for etcd. Requried R16 or higher, basing on etcd v2 http APIs.
 
 ## Quick start
 
-Config etcd address:
+Config etcd address and enable this mode:
 
 ```erlang
-{etcd, [{addr, ["http://address1:port1", "http://address2:port2", "http://address3:port3"]}]
+{etcd, [
+    {addr, ["http://address1:port1", "http://address2:port2", "http://address3:port3"]}
+    {enable, true}
+    ]
 ```
+
+if set to disable, you will get nothing
 
 Start the application and do some basic action:
 
