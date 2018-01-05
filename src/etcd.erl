@@ -76,7 +76,12 @@ list_dir(KeyOrOpts) ->
                     case IsDir of
                         true ->
                             Nodes = proplists:get_value(<<"nodes">>, NodeProp),
-                            RetrivedNodes = [Node || {Node} <- Nodes],
+                            RetrivedNodes = case Nodes of
+                                undefined ->
+                                    [];
+                                _ ->
+                                    [Node || {Node} <- Nodes]
+                            end,
                             {ok, RetrivedNodes};
                         false ->
                             {fail, not_dir}
