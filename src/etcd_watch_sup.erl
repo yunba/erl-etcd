@@ -23,8 +23,8 @@ stop_child(Pid) ->
 
 init([]) ->
     RestartStrategy = simple_one_for_one,
-    MaxRestarts = 1,
-    MaxSecondsBetweenRestarts = 1,
+    MaxRestarts = 600,
+    MaxSecondsBetweenRestarts = 60,
     
     SupFlags = {RestartStrategy, MaxRestarts, MaxSecondsBetweenRestarts},
     
