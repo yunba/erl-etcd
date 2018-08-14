@@ -52,12 +52,7 @@ handle_call(Request, _From, State) ->
         {peer} ->
             Peer;
         {watch, Opts, Callback} ->
-            ChildSpec = {
-                {Opts, Callback},   % use {opts, callback} as id
-                {etcd_watch_behaviour, start_watch, [Opts, Callback]},
-                transient, 5000,
-                worker, [etcd_watch_behaviour, ?MODULE]},
-            etcd_sup:add_child(ChildSpec);
+            etcd_watch_sup:add_child(Opts, Callback);
         _ ->
             ok
     end,

@@ -5,20 +5,21 @@
 -export([do_watch/3, start_watch/2]).
 
 start_watch(Opts, Callback) ->
-    Pid = spawn_link(?MODULE, do_watch, ["", Opts, Callback]),
+    Pid = proc_lib:spawn_link(?MODULE, do_watch, [undefined, Opts, Callback]),
     {ok, Pid}.
 
 do_watch(Url, Opts, Callback) ->
     %% there is some chance that a peer is down so you will have to retrieve the url from etcd server
-    V2Url = case Url of
-        "" ->
-            Peer = etcd:get_current_peer(),
-            Peer ++ "/v2";
-        _ -> Url
-    end,
-
+    V2Url =
+        case Url of
+            undefined ->
+                Peer = etcd:get_current_peer(),
+                Peer ++ "/v2";
+            _ -> Url
+        end,
+    
     OptStr = etcd_worker:generate_read_str_from_opts(Opts#etcd_read_opts{wait = true}),
-
+    
     try ibrowse:send_req(V2Url ++ "/keys" ++ OptStr, [], get, [], [], 60000) of
         {ok, ReturnCode, _Headers, Body} ->
             case ReturnCode of

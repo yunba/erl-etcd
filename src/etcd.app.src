@@ -9,5 +9,7 @@
                   ibrowse
                  ]},
   {mod, { etcd_app, []}},
-  {env, []}
+  {env, [
+      {addr, ["http://127.0.0.1:2379"]},
+      {enable, true}]}
  ]}.
