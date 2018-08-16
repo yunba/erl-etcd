@@ -43,12 +43,8 @@ handle_call(Request, _From, State) ->
         {peer_down} ->
             EtcdPeers = proplists:get_value(etcds,State),
             NewPeer = get_health_peer(EtcdPeers),
-            case NewPeer of
-                undefined ->
-                    erlang:send_after(5000, self(), peer_down);
-                _ ->
-                    NewPeer
-            end;
+            NewPeer =:= undefined andalso erlang:send_after(5000, self(), peer_down),
+            NewPeer;
         {peer} ->
             Peer;
         {watch, Opts, Callback} ->
