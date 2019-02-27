@@ -120,7 +120,7 @@ check_peer_alive(Url) ->
         _ ->
             false
     catch
-        Exception:Error->
+        _Exception:_Error->
             false
     end.
 
