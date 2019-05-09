@@ -48,7 +48,12 @@ handle_call(Request, _From, State) ->
         {peer} ->
             Peer;
         {watch, Opts, Callback} ->
-            etcd_watch_sup:add_child(Opts, Callback);
+            ChildSpec = {
+                {Opts, Callback},   % use {opts, callback} as id
+                {etcd_watch_behaviour, start_watch, [Opts, Callback]},
+                transient, 5000,
+                worker, [etcd_watch_behaviour, ?MODULE]},
+            etcd_sup:add_child(ChildSpec);
         _ ->
             ok
     end,
@@ -237,7 +242,7 @@ generate_read_str_from_opts(Opts) ->
             recursive = Recursive,
             sorted = Sorted,
             modified_index = ModifiedIndex} ->
-
+            
             OptList0 = case is_boolean(Wait) of
                 true -> ["wait=" ++ atom_to_list(Wait)];
                 _ -> []

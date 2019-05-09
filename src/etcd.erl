@@ -136,7 +136,7 @@ watch_dir(KeyOrOpts, Callback) ->
 %%% stop watching
 -spec stop_watch(Pid::pid()) -> ok|{error, term()}.
 stop_watch(Pid) ->
-    etcd_watch_sup:stop_child(Pid).
+    etcd_sup:stop_child(Pid).
 
 get_current_peer() ->
     Ret = gen_server:call(etcd_worker, {peer}),

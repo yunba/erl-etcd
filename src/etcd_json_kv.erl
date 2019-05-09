@@ -70,7 +70,7 @@ get_free_index_no(Key) ->
         _ -> {fail, internal_error}
     end.
 
-get_as_e_json(_Prefix, -1, Output) ->
+get_as_e_json(Prefix, -1, Output) ->
     Output;
 get_as_e_json(Prefix, CurrentIndex, Output) when is_integer(CurrentIndex) ->
     CurKey = Prefix ++ etcd_util:make_sure_list(CurrentIndex),
