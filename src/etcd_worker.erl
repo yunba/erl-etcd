@@ -48,9 +48,10 @@ handle_call(Request, _From, State) ->
         {peer} ->
             Peer;
         {watch, Opts, Callback} ->
+            Id = erlang:make_ref(),
             ChildSpec = {
-                {Opts, Callback},   % use {opts, callback} as id
-                {etcd_watch_behaviour, start_watch, [Opts, Callback]},
+                Id,
+                {etcd_watch_behaviour, start_watch, [Id, Opts, Callback]},
                 transient, 5000,
                 worker, [etcd_watch_behaviour, ?MODULE]},
             etcd_sup:add_child(ChildSpec);

@@ -2,11 +2,11 @@
 
 -include("etcd.hrl").
 
--export([do_watch/3, start_watch/2]).
+-export([do_watch/3, start_watch/3]).
 
-start_watch(Opts, Callback) ->
+start_watch(Ref, Opts, Callback) ->
     Pid = spawn_link(?MODULE, do_watch, ["", Opts, Callback]),
-    {ok, Pid}.
+    {ok, Pid, Ref}.
 
 do_watch(Url, Opts, Callback) ->
     %% there is some chance that a peer is down so you will have to retrieve the url from etcd server
