@@ -23,11 +23,13 @@ do_watch(Url, Opts, Callback) ->
         {ok, ReturnCode, _Headers, Body} ->
             case ReturnCode of
                 "200"->
-                    NewOpts = case get_modified_index_from_response_body(Body) of
+                    NewOpts = case catch get_modified_index_from_response_body(Body) of
                         {ok, NewModifiedIndex} -> 
                             NewIndex = NewModifiedIndex + 1,
                             Opts#etcd_read_opts{modified_index = NewIndex};
-                        _ -> Opts
+                        ErrRes ->
+                         error_logger:error_msg("watch: error: ~p ~p", [ErrRes, Body]), 
+                         Opts
                     end,
                     CallbackRet = Callback(Body),
                     case CallbackRet of
