@@ -72,16 +72,16 @@ handle_info({hackney_response, Ref, {headers, Headers}},
                 {ok, NewModifiedIndex} ->
                     NewIndex = NewModifiedIndex + 1,
                     rewatch_after(0),
-                    {noreply, State#state{opts =
-                    Opts#etcd_read_opts{modified_index = NewIndex}}};
+                    {noreply, State#state{time = 0,
+                    opts = Opts#etcd_read_opts{modified_index = NewIndex}}};
                 _ ->
                     rewatch_after(100),
-                    {noreply, State#state{peer = "", opts = ?CLEAR_INDEX(Opts)}}
+                    {noreply, State#state{time = 100, peer = "", opts = ?CLEAR_INDEX(Opts)}}
             catch
                 E:R ->
                     rewatch_after(100),
                     logger:error("watch 400 error ~p", [{E, R, Body}]),
-                    {noreply, State#state{peer = "", opts = ?CLEAR_INDEX(Opts)}}
+                    {noreply, State#state{time = 100, peer = "", opts = ?CLEAR_INDEX(Opts)}}
             end;
         _ ->
             {ok, Ref} = hackney:stop_async(Ref),
@@ -89,7 +89,7 @@ handle_info({hackney_response, Ref, {headers, Headers}},
             {ok, Body} = hackney:body(Ref),
             logger:info("watch error ~p: ~p ~p ", [Status, Body, Opts]),
             rewatch_after(100),
-            {noreply, State#state{peer = "", opts = ?CLEAR_INDEX(Opts)}}
+            {noreply, State#state{time = 100, peer = "", opts = ?CLEAR_INDEX(Opts)}}
     end;
 
 handle_info({hackney_response, Ref, Body}, State
@@ -119,7 +119,7 @@ handle_info({hackney_response, Ref, Error},
     State = #state{hackney_ref = Ref, time = Time}) ->
     logger:error("watch Error ~p ~p", [Ref, Error, Time]),
     rewatch_after(400),
-    {noreply, State};
+    {noreply, State#{time = 0}};
 
 handle_info(stop, State) ->
     {stop, normal, State};
@@ -154,14 +154,14 @@ do_watch(State) ->
                 {error, econnrefused} ->
                     etcd_worker ! peer_down,
                     rewatch_after(100),
-                    State#state{peer = "", opts = ?CLEAR_INDEX(Opts)};
+                    State#state{time = 100, peer = "", opts = ?CLEAR_INDEX(Opts)};
                 _ ->
                     rewatch_after(200),
-                    State#state{peer = "", opts = ?CLEAR_INDEX(Opts)}
+                    State#state{time = 200, peer = "", opts = ?CLEAR_INDEX(Opts)}
             catch
                 _:_ ->
                     rewatch_after(200),
-                    State#state{peer = "", opts = ?CLEAR_INDEX(Opts)}
+                    State#state{time = 200, peer = "", opts = ?CLEAR_INDEX(Opts)}
             end
     end.
 
