@@ -47,8 +47,12 @@ handle_call({peer}, _From, State = #state{peer = Peer}) ->
     {reply, random_peers(Peer), State};
 
 handle_call({watch, Opts, Callback}, _From, State = #state{peer = Peer}) ->
-    {ok, Pid} = etcd_watch_sup:add_child(Opts, random_peers(Peer), Callback),
-    {reply, {ok, Pid}, State}.
+    case random_peers(Peer) of
+        {ok, Url} ->
+            {ok, Pid} = etcd_watch_sup:add_child(Url, Opts, Callback),
+            {reply, {ok, Pid}, State};
+        Err -> {reply, Err, State}
+    end.
 
 handle_cast(_Msg, State) ->
     {noreply, State}.
@@ -95,7 +99,7 @@ etcd_action(create, V2Url, Opts) ->
     {Body, QueryStr} = generate_modify_url_and_data_from_opts(Opts),
     try hackney:request(post, V2Url ++ "/keys" ++ QueryStr, [], Body, [{recv_timeout, 5000}, {pool, etcd}, with_body]) of
         {ok, 200, _Headers, RetBody} -> {ok, RetBody};
-            {ok, 201, _Headers, RetBody} -> {ok, RetBody};
+        {ok, 201, _Headers, RetBody} -> {ok, RetBody};
         {ok, ReturnCode, _Headers, RetBody} -> {fail, {wrong_response_code, ReturnCode, RetBody}};
         {error, econnrefused} ->
             case gen_server:call(?MODULE, {peer_down}) of

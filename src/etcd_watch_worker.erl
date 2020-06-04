@@ -20,18 +20,18 @@ test() ->
     application:ensure_all_started(etcd),
     logger:set_primary_config(level, info),
     Key = "/zhonwen",
-    %% {ok, Pid} = etcd:watch(Key, self()),
-    Opts = #etcd_read_opts{key = Key, modified_index = 590},
-    {ok, Pid} = etcd:watch(Opts, self()),
+    {ok, Pid} = etcd:watch(Key, self()),
+    %% Opts = #etcd_read_opts{key = Key, modified_index = 590},
+    %% {ok, Pid} = etcd:watch(Opts, self()),
     logger:info("watch pid:~p", [Pid]),
     timer:sleep(100),
     etcd:set(Key, "good"),
     ok.
 
-start_watch(Opts, Url, Pid) ->
-    gen_server:start_link(?MODULE, [Opts, Url, Pid], []).
+start_watch(Url, Opts, Pid) ->
+    gen_server:start_link(?MODULE, [Url, Opts, Pid], []).
 
-init([Opts, {ok, Url}, Pid]) ->
+init([Url, Opts, Pid]) ->
     Ref = erlang:monitor(process, Pid),
     erlang:process_flag(trap_exit, true),
     {ok, #state{opts = Opts, pid = Pid, peer = Url, call_ref = Ref}, 0};

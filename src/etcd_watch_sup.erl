@@ -11,8 +11,8 @@
 start_link() ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
-add_child(Opts, Url, Callback) ->
-    supervisor:start_child(?MODULE, [Opts, Url, Callback]).
+add_child(Url, Opts, Callback) ->
+    supervisor:start_child(?MODULE, [Url, Opts, Callback]).
 
 stop_child(Pid) ->
     supervisor:terminate_child(?MODULE, Pid).
@@ -29,7 +29,7 @@ init([]) ->
     SupFlags = {RestartStrategy, MaxRestarts, MaxSecondsBetweenRestarts},
     
     Restart = transient,
-    Shutdown = brutal_kill,
+    Shutdown = 900,
     Type = worker,
     Module = etcd_watch_worker,
     Child =
