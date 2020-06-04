@@ -6,13 +6,13 @@
 -export([start_link/0]).
 
 %% Supervisor callbacks
--export([init/1, add_child/2, stop_child/1]).
+-export([init/1, add_child/3, stop_child/1]).
 
 start_link() ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
-add_child(Opts, Callback) ->
-    supervisor:start_child(?MODULE, [Opts, Callback]).
+add_child(Opts, Url, Callback) ->
+    supervisor:start_child(?MODULE, [Opts, Url, Callback]).
 
 stop_child(Pid) ->
     supervisor:terminate_child(?MODULE, Pid).
@@ -29,9 +29,9 @@ init([]) ->
     SupFlags = {RestartStrategy, MaxRestarts, MaxSecondsBetweenRestarts},
     
     Restart = transient,
-    Shutdown = 2000,
+    Shutdown = brutal_kill,
     Type = worker,
-    Module = etcd_watch_behaviour,
+    Module = etcd_watch_worker,
     Child =
         {Module, {Module, start_watch, []},
             Restart, Shutdown, Type, [Module]},

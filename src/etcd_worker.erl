@@ -4,16 +4,18 @@
 
 %% gen_server callbacks
 -export([init/1,
-         handle_call/3,
-         handle_cast/2,
-         handle_info/2,
-         terminate/2,
-         code_change/3]).
+    handle_call/3,
+    handle_cast/2,
+    handle_info/2,
+    terminate/2,
+    code_change/3]).
 
 -define(SERVER, ?MODULE).
 
 -export([generate_modify_url_and_data_from_opts/1, generate_read_str_from_opts/1]).
 -include("etcd.hrl").
+
+-record(state, {peer = [], etcd = []}).
 
 %%%===================================================================
 %%% API
@@ -31,60 +33,33 @@ start_link(Args) ->
 init([EtcdPeers]) ->
     Peer = get_health_peer(EtcdPeers),
     case Peer of
-        undefined ->
-            {stop, no_etcd_peer_alive};
-        _ ->
-            {ok, [{peer, Peer}, {etcds, EtcdPeers}]}
+        [] -> {stop, no_etcd_peer_alive};
+        _ -> {ok, #state{peer = Peer, etcd = EtcdPeers}}
     end.
 
-handle_call(Request, _From, State) ->
-    Peer = proplists:get_value(peer,State),
-    Reply = case Request of
-        {peer_down} ->
-            EtcdPeers = proplists:get_value(etcds,State),
-            NewPeer = get_health_peer(EtcdPeers),
-            NewPeer =:= undefined andalso erlang:send_after(5000, self(), peer_down),
-            NewPeer;
-        {peer} ->
-            Peer;
-        {watch, Opts, Callback} ->
-            etcd_watch_sup:add_child(Opts, Callback);
-        _ ->
-            ok
-    end,
-    NewState = case Request of
-        {peer_down} when Reply =/= undefined ->
-            CleanState = proplists:delete(peer, State),
-            CleanState ++ [{peer, Reply}];
-        _ ->
-            State
-    end,
+handle_call({peer_down}, _From, State) ->
+    #state{etcd = Etcd} = State,
+    NewPeer = get_health_peer(Etcd),
+    NewPeer =:= [] andalso erlang:send_after(2000, self(), peer_down),
+    {reply, random_peers(NewPeer), State#state{peer = NewPeer}};
 
-    {reply, Reply, NewState}.
+handle_call({peer}, _From, State = #state{peer = Peer}) ->
+    {reply, random_peers(Peer), State};
 
+handle_call({watch, Opts, Callback}, _From, State = #state{peer = Peer}) ->
+    {ok, Pid} = etcd_watch_sup:add_child(Opts, random_peers(Peer), Callback),
+    {reply, {ok, Pid}, State}.
 
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
-handle_info(Info, State) ->
-    NextState = case Info of
-        peer_down->
-            EtcdPeers = proplists:get_value(etcds,State), 
-            NewPeer = get_health_peer(EtcdPeers),
-            case NewPeer of
-                undefined -> 
-                    %% no peer is on, wait 5s and re-send
-                    erlang:send_after(5000, self(), peer_down),
-                    State;
-                _ -> 
-                    %% update old peer to new peer
-                    CleanState = proplists:delete(peer, State),
-                    CleanState ++ [{peer, NewPeer}]
-            end;
-        _ ->
-            State
-    end,
-    {noreply, NextState}.
+handle_info(peer_down, State) ->
+    #state{etcd = Etcd} = State,
+    NewPeer = get_health_peer(Etcd),
+    {noreply, State#state{peer = NewPeer}};
+
+handle_info(_Info, State) ->
+    {noreply, State}.
 
 terminate(_Reason, _State) ->
     ok.
@@ -98,134 +73,92 @@ code_change(_OldVsn, State, _Extra) ->
 
 get_health_peer(EtcdPeers) ->
     lists:foldl(
-        fun(Url, ActivePeer) -> 
-            case ActivePeer of
-                undefined ->
-                    case check_peer_alive(Url) of
-                        true -> Url;
-                        false -> undefined
-                    end;
-                _ ->
-                    ActivePeer
+        fun(Url, ActivePeer) ->
+            case check_peer_alive(Url) of
+                true -> [Url | ActivePeer];
+                false -> ActivePeer
             end
-        end, undefined, EtcdPeers).
+        end, [], EtcdPeers).
 
 check_peer_alive(Url) ->
-    try ibrowse:send_req(Url ++ "/version", [], get, [], [], 5000) of
-        {ok, ReturnCode, _Headers, _Body} ->
-            case ReturnCode of
-                "200" -> true;
-                _ -> false
-            end;
-        _ ->
-            false
+    try hackney:request(get, Url ++ "/version", [], <<>>, [{recv_timeout, 5000}, {pool, etcd}, with_body]) of
+        {ok, 200, _Headers, _Body} -> true;
+        _ -> false
     catch
-        _Exception:_Error->
-            false
+        _Exception:_Error -> false
     end.
 
+random_peers([]) -> {error, no_etcd_peer_alive};
+random_peers(List) -> {ok, lists:nth(rand:uniform(erlang:length(List)), List)}.
+
 etcd_action(create, V2Url, Opts) ->
-    Header = [{"Content-Type", "application/x-www-form-urlencoded"}],
-    {Body, QueryStr} = generate_modify_url_and_data_from_opts(Opts), 
-    try ibrowse:send_req(V2Url ++ "/keys" ++ QueryStr, Header, post, Body, [], 5000) of
-        {ok, ReturnCode, _Headers, RetBody} ->
-            case ReturnCode of
-                "200" -> 
-                    {ok, RetBody};
-                "201" -> 
-                    {ok, RetBody};
-                _ -> 
-                    {fail, {wrong_response_code, Body}}
-            end;
-        {error,{conn_failed,{error,econnrefused}}} ->
+    {Body, QueryStr} = generate_modify_url_and_data_from_opts(Opts),
+    try hackney:request(post, V2Url ++ "/keys" ++ QueryStr, [], Body, [{recv_timeout, 5000}, {pool, etcd}, with_body]) of
+        {ok, 200, _Headers, RetBody} -> {ok, RetBody};
+            {ok, 201, _Headers, RetBody} -> {ok, RetBody};
+        {ok, ReturnCode, _Headers, RetBody} -> {fail, {wrong_response_code, ReturnCode, RetBody}};
+        {error, econnrefused} ->
             case gen_server:call(?MODULE, {peer_down}) of
-                undefined ->
+                {error, _} ->
                     {fail, peer_down};
-                NewPeer ->
-                    etcd_action(post, NewPeer ++ "/v2/keys", Opts)
+                {ok, NewPeer} ->
+                    etcd_action(create, NewPeer ++ "/v2", Opts)
             end;
-        Reason ->
-            {fail, Reason}
+        Reason -> {fail, Reason}
     catch
-        Exception:Error->
-            {fail, {Exception, Error}}
+        Exception:Error -> {fail, {Exception, Error}}
     end;
 etcd_action(set, V2Url, Opts) ->
-    Header = [{"Content-Type", "application/x-www-form-urlencoded"}],
-    {Body, QueryStr} = generate_modify_url_and_data_from_opts(Opts), 
-    try ibrowse:send_req(V2Url ++ "/keys" ++ QueryStr, Header, put, Body, [], 5000) of
-        {ok, ReturnCode, _Headers, RetBody} ->
-            case ReturnCode of
-                "200" -> 
-                    {ok, RetBody};
-                "201" -> 
-                    {ok, RetBody};
-                _ -> 
-                    {fail, {wrong_response_code, {ReturnCode, Body}}}
-            end;
-        {error,{conn_failed,{error,econnrefused}}} ->
+    {Body, QueryStr} = generate_modify_url_and_data_from_opts(Opts),
+    try hackney:request(put, V2Url ++ "/keys" ++ QueryStr, [], Body, [{recv_timeout, 5000}, {pool, etcd}, with_body]) of
+        {ok, 200, _Headers, RetBody} -> {ok, RetBody};
+        {ok, 201, _Headers, RetBody} -> {ok, RetBody};
+        {ok, ReturnCode, _Headers, RetBody} -> {fail, {wrong_response_code, {ReturnCode, RetBody}}};
+        {error, econnrefused} ->
             case gen_server:call(?MODULE, {peer_down}) of
-                undefined ->
+                {error, _} ->
                     {fail, peer_down};
-                NewPeer ->
-                    etcd_action(set, NewPeer ++ "/v2/keys", Opts)
+                {ok, NewPeer} ->
+                    etcd_action(set, NewPeer ++ "/v2", Opts)
             end;
-        Reason ->
-            {fail, Reason}
+        Reason -> {fail, Reason}
     catch
-        Exception:Error->
-            {fail, {Exception, Error}}
+        Exception:Error -> {fail, {Exception, Error}}
     end;
 etcd_action(get, V2Url, Opts) ->
     OptStr = generate_read_str_from_opts(Opts),
-    try ibrowse:send_req(V2Url ++ "/keys" ++ OptStr, [], get, [], [], 5000) of
-        {ok, ReturnCode, _Headers, Body} ->
-            case ReturnCode of
-                "200" -> 
-                    {ok, Body};
-                "404" ->
-                    {fail, not_found};
-                _ -> 
-                    {fail, {wrong_response_code, {ReturnCode, Body}}}
-            end;
-        {error,{conn_failed,{error,econnrefused}}} ->
+    try hackney:request(get, V2Url ++ "/keys" ++ OptStr, [], [], [{recv_timeout, 5000}, {pool, etcd}, with_body]) of
+        {ok, 200, _Headers, Body} -> {ok, Body};
+        {ok, 404, _Headers, _Body} -> {fail, not_found};
+        {ok, ReturnCode, _Headers, Body} -> {fail, {wrong_response_code, {ReturnCode, Body}}};
+        {error, econnrefused} ->
             case gen_server:call(?MODULE, {peer_down}) of
-                undefined ->
+                {error, _} ->
                     {fail, peer_down};
-                NewPeer ->
-                    etcd_action(get, NewPeer ++ "/v2/keys", Opts)
+                {ok, NewPeer} ->
+                    etcd_action(get, NewPeer ++ "/v2", Opts)
             end;
-        Reason ->
-            {fail, Reason}
+        Reason -> {fail, Reason}
     catch
-        Exception:Error->
-            {fail, {Exception, Error}}
+        Exception:Error -> {fail, {Exception, Error}}
     end;
 etcd_action(delete, V2Url, Opts) ->
     {_, OptStr} = generate_modify_url_and_data_from_opts(
-        Opts#etcd_modify_opts{recursive = true, refresh = undefined}) ,
-    try ibrowse:send_req(V2Url ++ "/keys" ++ OptStr, [], delete, [], [], 5000) of
-        {ok, ReturnCode, _Headers, Body} ->
-            case ReturnCode of
-                "200" -> 
-                    {ok, Body};
-                "404" -> 
-                    {ok, Body};
-                _ -> 
-                    {fail, {wrong_response_code, {ReturnCode, Body}}}
-            end;
-        {error,{conn_failed,{error,econnrefused}}} ->
+        Opts#etcd_modify_opts{recursive = true, refresh = undefined}),
+    try hackney:request(delete, V2Url ++ "/keys" ++ OptStr, [], [], [{recv_timeout, 5000}, {pool, etcd}, with_body]) of
+        {ok, 200, _Headers, Body} -> {ok, Body};
+        {ok, 404, _Headers, _Body} -> {fail, not_found};
+        {ok, ReturnCode, _Headers, Body} -> {fail, {wrong_response_code, {ReturnCode, Body}}};
+        {error, econnrefused} ->
             case gen_server:call(?MODULE, {peer_down}) of
-                undefined ->
+                {error, _} ->
                     {fail, peer_down};
-                NewPeer ->
-                    etcd_action(delete, NewPeer ++ "/v2/keys", Opts)
+                {ok, NewPeer} ->
+                    etcd_action(delete, NewPeer ++ "/v2", Opts)
             end;
-        Reason ->
-            {fail, Reason}
+        Reason -> {fail, Reason}
     catch
-        Exception:Error->
-            {fail, {Exception, Error}}
+        Exception:Error -> {fail, {Exception, Error}}
     end.
 
 
@@ -237,27 +170,27 @@ generate_read_str_from_opts(Opts) ->
             recursive = Recursive,
             sorted = Sorted,
             modified_index = ModifiedIndex} ->
-
+            
             OptList0 = case is_boolean(Wait) of
-                true -> ["wait=" ++ atom_to_list(Wait)];
-                _ -> []
-            end,
+                           true -> ["wait=" ++ atom_to_list(Wait)];
+                           _ -> []
+                       end,
             OptList1 = case is_boolean(Recursive) of
-                true -> OptList0 ++ ["recursive=" ++ atom_to_list(Recursive)];
-                _ -> OptList0
-            end,
+                           true -> OptList0 ++ ["recursive=" ++ atom_to_list(Recursive)];
+                           _ -> OptList0
+                       end,
             OptList2 = case is_boolean(Sorted) of
-                true -> OptList1 ++ ["sorted=" ++ atom_to_list(Sorted)];
-                _ -> OptList1
-            end,
+                           true -> OptList1 ++ ["sorted=" ++ atom_to_list(Sorted)];
+                           _ -> OptList1
+                       end,
             OptList3 = case is_integer(ModifiedIndex) of
-                true ->
-                    OptList2 ++ ["waitIndex=" ++ integer_to_list(ModifiedIndex)];
-                false ->
-                    OptList2
-            end,
+                           true ->
+                               OptList2 ++ ["waitIndex=" ++ integer_to_list(ModifiedIndex)];
+                           false ->
+                               OptList2
+                       end,
             OptsStr = lists:foldl(fun gen_query_str/2, "", OptList3),
-
+            
             etcd_util:url_encode(Key) ++ OptsStr;
         _ ->
             %% Actually , you should raise an exception here,
@@ -269,56 +202,55 @@ gen_query_str(OptStr, CurStr) ->
     case {OptStr, CurStr} of
         {"", _} -> CurStr;
         {_, ""} -> "?" ++ OptStr;
-        {_,_} -> CurStr ++ "&" ++ OptStr
+        {_, _} -> CurStr ++ "&" ++ OptStr
     end.
 
 generate_modify_url_and_data_from_opts(Opts) ->
     case Opts of
         #etcd_modify_opts{
-            ttl = TTL,        
+            ttl = TTL,
             key = Key,
-            value = Value,      
-            recursive = Recursive,      
+            value = Value,
+            recursive = Recursive,
             refresh = Refresh,
             prev_value = PrevValue,
             prev_index = PrevIndex,
             prev_exist = PrevExist,
             dir = Dir
-            } ->
-            DataStr = case {Value, TTL }of
-                {undefined, undefined} -> "";
-                {_, undefined} -> "value=" ++ etcd_util:url_encode(Value);
-                {undefined, _} -> "ttl=" ++ integer_to_list(TTL);
-                {_, _} -> "value=" ++ etcd_util:url_encode(Value) ++ "&ttl=" ++ integer_to_list(TTL)
-            end,
-
+        } ->
+            DataStr = case {Value, TTL} of
+                          {undefined, undefined} -> "";
+                          {_, undefined} -> {form, [{"value", Value}]};
+                          {undefined, _} -> {form, [{"ttl", TTL}]};
+                          {_, _} -> {form, [{"value", Value}, {"ttl", TTL}]}
+                      end,
+            
             QueryList0 = case is_boolean(Recursive) of
-                true -> ["recursive=" ++ atom_to_list(Recursive)];
-                false -> []
-            end,
+                             true -> ["recursive=" ++ atom_to_list(Recursive)];
+                             false -> []
+                         end,
             QueryList1 = case is_boolean(Refresh) of
-                true -> QueryList0 ++ ["refresh=" ++ atom_to_list(Refresh)];
-                false -> QueryList0
-            end,
+                             true -> QueryList0 ++ ["refresh=" ++ atom_to_list(Refresh)];
+                             false -> QueryList0
+                         end,
             QueryList2 = case is_boolean(PrevExist) of
-                true -> QueryList1 ++ ["prevExist=" ++ atom_to_list(PrevExist)];
-                false -> QueryList1
-            end,
+                             true -> QueryList1 ++ ["prevExist=" ++ atom_to_list(PrevExist)];
+                             false -> QueryList1
+                         end,
             QueryList3 = case is_boolean(Dir) of
-                true -> QueryList2 ++ ["dir=" ++ atom_to_list(Dir)];
-                false -> QueryList2
-            end,
+                             true -> QueryList2 ++ ["dir=" ++ atom_to_list(Dir)];
+                             false -> QueryList2
+                         end,
             QueryList4 = case is_list(PrevValue) of
-                true -> QueryList3 ++ ["prevValue=" ++ etcd_util:url_encode(PrevValue)];
-                false -> QueryList3
-            end,
+                             true -> QueryList3 ++ ["prevValue=" ++ etcd_util:url_encode(PrevValue)];
+                             false -> QueryList3
+                         end,
             QueryList5 = case is_integer(PrevIndex) of
-                true -> QueryList4 ++ ["prevIndex=" ++ integer_to_list(PrevIndex)];
-                false -> QueryList4
-            end,
+                             true -> QueryList4 ++ ["prevIndex=" ++ integer_to_list(PrevIndex)];
+                             false -> QueryList4
+                         end,
             QueryStr = lists:foldl(fun gen_query_str/2, "", QueryList5),
-
+            
             {DataStr, etcd_util:url_encode(Key) ++ QueryStr};
         _ -> {"", ""}
     end.
-

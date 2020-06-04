@@ -13,6 +13,9 @@ all() ->
 %        clean
     ].
 
+init_per_group(_, Config) -> Config.
+end_per_group(_GroupName, _Config) -> ok.
+
 clean(_) ->
     etcd:delete("/test_json").
 
