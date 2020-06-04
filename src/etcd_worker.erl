@@ -46,11 +46,11 @@ handle_call({peer_down}, _From, State) ->
 handle_call({peer}, _From, State = #state{peer = Peer}) ->
     {reply, random_peers(Peer), State};
 
-handle_call({watch, Opts, Callback}, _From, State = #state{peer = Peer}) ->
+handle_call({watch, Opts, Pid, Flag}, _From, State = #state{peer = Peer}) ->
     case random_peers(Peer) of
         {ok, Url} ->
-            {ok, Pid} = etcd_watch_sup:add_child(Url, Opts, Callback),
-            {reply, {ok, Pid}, State};
+            Res =  etcd_watch_sup:add_child(Url, Opts, Pid, Flag),
+            {reply, Res, State};
         Err -> {reply, Err, State}
     end.
 

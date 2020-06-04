@@ -8,19 +8,19 @@
 
 -behaviour(gen_server).
 
--export([start_watch/3]).
+-export([start_watch/4]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 -export([test/0]).
 -include("etcd.hrl").
 
--record(state, {opts, pid, peer = [], call_ref, hackney_ref, status, time = 0}).
+-record(state, {event_flag, opts, pid, peer = [], call_ref, hackney_ref, status, time = 0}).
 -define(CLEAR_INDEX(O), Opts#etcd_read_opts{modified_index = undefined}).
 
 test() ->
     application:ensure_all_started(etcd),
     logger:set_primary_config(level, info),
     Key = "/zhonwen",
-    {ok, Pid} = etcd:watch(Key, self()),
+    {ok, Pid} = etcd:watch(Key, self(), etcd_event),
     %% Opts = #etcd_read_opts{key = Key, modified_index = 590},
     %% {ok, Pid} = etcd:watch(Opts, self()),
     logger:info("watch pid:~p", [Pid]),
@@ -28,14 +28,14 @@ test() ->
     etcd:set(Key, "good"),
     ok.
 
-start_watch(Url, Opts, Pid) ->
-    gen_server:start_link(?MODULE, [Url, Opts, Pid], []).
+start_watch(Url, Opts, Pid, EventFlag) ->
+    gen_server:start_link(?MODULE, [Url, Opts, Pid, EventFlag], []).
 
-init([Url, Opts, Pid]) ->
+init([Url, Opts, Pid, EventFlag]) ->
     Ref = erlang:monitor(process, Pid),
     erlang:process_flag(trap_exit, true),
-    {ok, #state{opts = Opts, pid = Pid, peer = Url, call_ref = Ref}, 0};
-init([_Opts, Reason, _Pid]) -> {stop, Reason}.
+    {ok, #state{opts = Opts, pid = Pid, peer = Url,
+        call_ref = Ref, event_flag = EventFlag}, 0}.
 
 handle_call(_Request, _From, State = #state{}) ->
     {reply, ok, State}.
@@ -92,13 +92,14 @@ handle_info({hackney_response, Ref, {headers, Headers}},
             {noreply, State#state{peer = "", opts = ?CLEAR_INDEX(Opts)}}
     end;
 
-handle_info({hackney_response, Ref, Body},
-    State = #state{hackney_ref = Ref, opts = Opts, pid = Pid}) when is_binary(Body) ->
+handle_info({hackney_response, Ref, Body}, State
+    = #state{hackney_ref = Ref, opts = Opts, pid = Pid, event_flag = EventFlag})
+    when is_binary(Body) ->
     hackney:stream_next(Ref),
     try get_modified_index_from_response_body(Body) of
         {ok, NewModifiedIndex, Json} ->
             NewIndex = NewModifiedIndex + 1,
-            erlang:send(Pid, Json),
+            erlang:send(Pid, {EventFlag, Json}),
             {noreply, State#state{opts = Opts#etcd_read_opts{modified_index = NewIndex}, time = 0}};
         _ ->
             {noreply, State#state{peer = "", opts = ?CLEAR_INDEX(Opts), time = 100}}

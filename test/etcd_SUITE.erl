@@ -149,13 +149,13 @@ get_value(_) ->
 watch_value(_) ->
     %% this test is a little care about timing...
     Callback = self(),
-    {ok, _} = etcd:watch("/testing_entry/message", Callback),
+    {ok, _} = etcd:watch("/testing_entry/message", Callback, test),
     timer:sleep(300),
     
     {ok, Msg} = etcd:set("/testing_entry/message", "2"),
     ct:log("msg is :~p", [Msg]),
     
-    Res1 = receive #{} = Event ->
+    Res1 = receive {test, #{}} = Event ->
         ct:log("receive Event:~p~n", [Event]),
         ok
            after 2000 ->
@@ -164,7 +164,7 @@ watch_value(_) ->
     Res1 = ok,
     {ok, DelMsg} = etcd:delete("/testing_entry/message"),
     ct:log("msg is :~p", [DelMsg]),
-    Res2 = receive #{} = Event1 ->
+    Res2 = receive {test, #{}} = Event1 ->
         ct:log("receive Event:~p~n", [Event1]),
         ok
            after 2000 ->
@@ -174,10 +174,10 @@ watch_value(_) ->
 
 watch_dir(_) ->
     CallBack = self(),
-    {ok, WPid} = etcd:watch_dir("/testing_entry/test_dir", CallBack),
+    {ok, WPid} = etcd:watch_dir("/testing_entry/test_dir", CallBack, test1),
     timer:sleep(300),
     {ok, _} = etcd:set("/testing_entry/test_dir/hello", "2"),
-    Res1 = receive #{} = Event1 ->
+    Res1 = receive {test1, #{}} = Event1 ->
         ct:log("receive Event:~p~n", [Event1]),
         ok
            after 2000 ->
@@ -185,7 +185,7 @@ watch_dir(_) ->
            end,
     Res1 = ok,
     {ok, _} = etcd:set("/testing_entry/test_dir/hello2", "2"),
-    Res2 = receive #{} = Event2 ->
+    Res2 = receive {test1, #{}} = Event2 ->
         ct:log("receive Event:~p~n", [Event2]),
         ok
            after 2000 ->
